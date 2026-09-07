@@ -15,7 +15,7 @@ const navItems: NavItem[] = [
   { name: 'Transaksi',   href: '/transactions', icon: ListOrdered,     roles: ['ADMIN', 'KASIR'] },
   { name: 'Pemasukan',   href: '/income',       icon: Wallet,          roles: ['ADMIN', 'OWNER'] },
   { name: 'Pengeluaran', href: '/expenses',     icon: Receipt,         roles: ['ADMIN', 'OWNER'] },
-  { name: 'Laporan',     href: '/reports',      icon: FileText,        roles: ['ADMIN', 'OWNER'] },
+  { name: 'Laporan',     href: '/reports',      icon: FileText,        roles: ['OWNER'] },
   { name: 'Produk',      href: '/products',     icon: Package,         roles: ['ADMIN'] },
   { name: 'Jasa',        href: '/services',     icon: PenTool,         roles: ['ADMIN'] },
   { name: 'Stok',        href: '/inventory',    icon: Box,             roles: ['ADMIN'] },
