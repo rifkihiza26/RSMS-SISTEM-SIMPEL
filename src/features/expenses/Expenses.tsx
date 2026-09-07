@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRupiah, formatDateShort, generateExpenseNumber, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils'
-import { Plus, Search, Calendar } from 'lucide-react'
+import { Plus, Search, Calendar , Trash } from 'lucide-react'
 
 type Expense = {
   id: string
@@ -21,7 +21,7 @@ type Expense = {
 
 
 export function Expenses() {
-  const { user } = useAuth()
+  const { user, isOwner } = useAuth()
   const qc = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [dateFilter, setDateFilter] = useState('')
@@ -69,6 +69,15 @@ export function Expenses() {
       const { data } = await supabase.from('mechanics').select('id, name').eq('status', 'ACTIVE')
       return data ?? []
     }
+  })
+
+  
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('expenses').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] })
   })
 
   const saveMutation = useMutation({
@@ -198,7 +207,8 @@ export function Expenses() {
                       {e.mechanics && <span className="block text-[11px] text-gray-500 mt-0.5">Mekanik: {e.mechanics.name}</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell max-w-xs truncate" title={e.description || ''}>{e.description || '-'}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-red-600">{formatRupiah(e.amount)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-red-600">-{formatRupiah(e.amount)}</td>
+                    <td className="px-4 py-3 text-right">{isOwner && <button onClick={() => { if(confirm('Yakin hapus pengeluaran ini?')) deleteMutation.mutate(e.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}</td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
                       <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">{e.payment_method}</span>
                     </td>

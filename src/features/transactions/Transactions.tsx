@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { formatRupiah, formatDateShort } from '@/lib/utils'
-import { Search, Eye } from 'lucide-react'
+import { downloadPDF } from '@/lib/pdf'
+import { Search, Eye , Trash, Printer } from 'lucide-react'
 
 type Transaction = {
   id: string
@@ -15,6 +17,7 @@ type Transaction = {
   change_amount: number
   status: string
   created_at: string
+  notes?: string | null
   profiles?: { full_name: string | null } | null
 }
 
@@ -37,6 +40,8 @@ function Badge({ method }: { method: string }) {
 }
 
 export function Transactions() {
+  const { isOwner } = useAuth()
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -62,6 +67,15 @@ export function Transactions() {
       const { data } = await supabase.from('transaction_items').select('*').eq('transaction_id', detailId!)
       return (data ?? []) as TrxItem[]
     }
+  })
+
+  
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('transactions').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] })
   })
 
   const filtered = transactions.filter(t =>
@@ -115,8 +129,9 @@ export function Transactions() {
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatRupiah(t.total)}</td>
                     <td className="px-4 py-3 text-center"><Badge method={t.payment_method} /></td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{t.profiles?.full_name ?? '-'}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button onClick={() => setDetailId(t.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10"><Eye className="h-4 w-4" /></button>
+                    <td className="px-4 py-3 text-right flex justify-end gap-1">
+                      <button onClick={() => setDetailId(t.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Detail"><Eye className="h-4 w-4" /></button>
+                      {isOwner && <button onClick={() => { if(confirm('Yakin hapus transaksi beserta itemnya? Pemasukan terkait akan terhapus juga otomatis jika ada cascade, tapi stok tidak kembali otomatis.')) deleteMutation.mutate(t.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}
                     </td>
                   </tr>
                 ))}
@@ -167,7 +182,45 @@ export function Transactions() {
                     <div className="flex justify-between"><span className="text-gray-500">Kembalian</span><span>{formatRupiah(detailTrx.change_amount)}</span></div>
                   </>
                 )}
+              
+              <div className="flex gap-2">
+                <button onClick={() => downloadPDF('reprint-receipt', 'Invoice-' + detailTrx.transaction_number)} className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Cetak PDF</button>
               </div>
+
+              {/* Hidden Receipt Format for printing */}
+              <div className="hidden">
+                <div id="reprint-receipt" className="bg-white text-black w-[400px] p-6 text-sm font-sans mx-auto">
+                  <div className="text-center mb-6">
+                    <img src="/logo.png" alt="Logo" className="h-14 mx-auto mb-2 grayscale" />
+                    <h2 className="text-xl font-bold font-serif mb-1">RAKYAT SINTING</h2>
+                    <p className="text-xs text-gray-600 leading-tight">Jln. Pejaten Raya RT.01/RW.07 No. 3<br />Kecamatan Pasar Minggu, Jakarta Selatan<br />WA: 0813-8760-7676</p>
+                  </div>
+                  <div className="border-t border-b border-dashed border-gray-300 py-2 mb-4 text-xs space-y-1">
+                    <div className="flex justify-between"><span>No: {detailTrx.transaction_number}</span><span>{formatDateShort(detailTrx.created_at)}</span></div>
+                    <div className="flex justify-between"><span>KSR: {detailTrx.profiles?.full_name ?? '-'}</span><span>{detailTrx.notes || '-'}</span></div>
+                  </div>
+                  <div className="space-y-3 mb-4">
+                    {detailItems.map(item => (
+                      <div key={item.id} className="text-xs">
+                        <div className="font-semibold">{item.item_name}</div>
+                        <div className="flex justify-between text-gray-600">
+                          <span>{item.quantity} x {formatRupiah(item.unit_price)}</span>
+                          <span>{formatRupiah(item.subtotal)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-dashed border-gray-300 pt-3 text-xs space-y-1.5">
+                    <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatRupiah(detailTrx.subtotal)}</span></div>
+                    {detailTrx.discount > 0 && <div className="flex justify-between text-gray-600"><span>Diskon</span><span>-{formatRupiah(detailTrx.discount)}</span></div>}
+                    <div className="flex justify-between font-bold text-sm pt-1"><span>TOTAL</span><span>{formatRupiah(detailTrx.total)}</span></div>
+                    <div className="flex justify-between pt-1"><span>{detailTrx.payment_method}</span><span>{detailTrx.payment_method === 'CASH' ? formatRupiah(detailTrx.paid_amount) : formatRupiah(detailTrx.total)}</span></div>
+                    {detailTrx.payment_method === 'CASH' && <div className="flex justify-between"><span>Kembali</span><span>{formatRupiah(detailTrx.change_amount)}</span></div>}
+                  </div>
+                  <div className="text-center mt-8 text-xs text-gray-500 italic border-t border-dashed border-gray-300 pt-4">Terima kasih atas kunjungan Anda.<br/>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</div>
+                </div>
+              </div>
+</div>
             </div>
           </div>
         </div>
