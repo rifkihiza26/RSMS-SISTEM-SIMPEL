@@ -21,7 +21,7 @@ const navItems: NavItem[] = [
   { name: 'Stok',        href: '/inventory',    icon: Box,             roles: ['ADMIN'] },
   { name: 'Restock',     href: '/restocks',     icon: RefreshCw,       roles: ['ADMIN'] },
   { name: 'Mekanik',     href: '/mechanics',    icon: Users,           roles: ['ADMIN'] },
-  { name: 'Pengaturan',  href: '/settings',     icon: Settings,        roles: ['ADMIN', 'OWNER'] },
+  { name: 'Pengaturan',  href: '/settings',     icon: Settings,        roles: ['ADMIN'] },
 ]
 
 export function AppLayout() {
