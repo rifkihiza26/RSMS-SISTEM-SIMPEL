@@ -128,6 +128,11 @@ export function AppLayout() {
     </div>
   )
 
+  // Bottom nav items (hanya yang relevan per role — max 5 untuk mobile)
+  const bottomNavItems = navItems
+    .filter(item => item.roles.includes(currentRole as any))
+    .slice(0, 5)
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Desktop sidebar */}
@@ -135,11 +140,11 @@ export function AppLayout() {
         <SidebarContent />
       </aside>
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile sidebar overlay (geser dari kiri) */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 sm:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-zinc-950 flex flex-col shadow-xl">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl">
             <SidebarContent />
           </aside>
         </div>
@@ -148,17 +153,55 @@ export function AppLayout() {
       {/* Main content */}
       <div className="flex flex-col flex-1 sm:pl-56 xl:pl-64 min-w-0">
         {/* Mobile topbar */}
-        <header className="sm:hidden sticky top-0 z-30 flex items-center gap-3 bg-zinc-950 text-zinc-100 border-zinc-800 border-b px-4 h-14">
-          <button onClick={() => setSidebarOpen(true)} className="p-1">
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-          <span className="font-semibold text-sm">RSMS</span>
+        <header className="sm:hidden sticky top-0 z-30 flex items-center justify-between bg-zinc-950 text-zinc-100 border-zinc-800 border-b px-4 h-14">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="RSMS" className="h-7 w-7 rounded object-cover" />
+            <span className="font-bold text-sm tracking-wide">RSMS</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${roleBadgeClass}`}>{roleBadgeLabel}</span>
+            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-zinc-800">
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 overflow-auto">
+        {/* Page content — padding bawah lebih besar di mobile untuk bottom nav */}
+        <main className="flex-1 p-3 sm:p-6 overflow-auto pb-24 sm:pb-6">
           <Outlet />
         </main>
+
+        {/* Mobile bottom navigation */}
+        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 safe-bottom">
+          <div className="flex items-center justify-around px-1 py-1">
+            {bottomNavItems.map(item => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all flex-1 ${
+                    isActive ? 'text-primary' : 'text-gray-400'
+                  }`}
+                >
+                  <item.icon className={`h-5 w-5 ${isActive ? 'text-primary' : 'text-gray-400'}`} />
+                  <span className={`text-[9px] font-semibold leading-none ${isActive ? 'text-primary' : 'text-gray-400'}`}>
+                    {item.name}
+                  </span>
+                  {isActive && <div className="w-1 h-1 rounded-full bg-primary mt-0.5" />}
+                </Link>
+              )
+            })}
+            {/* Tombol menu "Lainnya" jika ada lebih dari 5 menu */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-gray-400 flex-1"
+            >
+              <Menu className="h-5 w-5" />
+              <span className="text-[9px] font-semibold leading-none">Menu</span>
+            </button>
+          </div>
+        </nav>
       </div>
     </div>
   )

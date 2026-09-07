@@ -55,5 +55,24 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Prevent overscroll bounce on iOS */
+    overscroll-behavior: none;
+  }
+
+  /* Fix auto-zoom on iOS Safari: input font-size must be >= 16px */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Tap highlight off for app-like feel */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Safe area padding for iPhone notch/home bar */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
