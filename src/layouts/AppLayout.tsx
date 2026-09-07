@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingCart, ListOrdered, Wallet, Receipt,
   Package, PenTool, Box, RefreshCw, Users, FileText, Settings,
-  LogOut, Menu, X, ChevronRight,
+  LogOut, Menu, ChevronRight,
 } from 'lucide-react'
 
 type NavItem = { name: string; href: string; icon: React.ElementType; roles: ('ADMIN' | 'KASIR' | 'OWNER')[] }
