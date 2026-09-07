@@ -49,6 +49,7 @@ export function Cashier() {
   const [paidAmount, setPaidAmount] = useState(0)
   const [selectedMechanicId, setSelectedMechanicId] = useState('')
   const [motorType, setMotorType] = useState('')
+  const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0])
   const [categoryFilter, setCategoryFilter] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({ name: '', type: 'Jasa', price: '', qty: '1' })
@@ -184,6 +185,19 @@ export function Cashier() {
       p_created_by: user?.id ?? null,
       p_items: items,
     })
+    
+    if (!error && txDate !== new Date().toISOString().split('T')[0]) {
+      const targetTime = txDate + 'T12:00:00Z'
+      const { data: trxData } = await supabase.from('transactions').select('id').eq('transaction_number', trxNumber).single()
+      if (trxData) {
+        await Promise.all([
+          supabase.from('transactions').update({ created_at: targetTime }).eq('id', trxData.id),
+          supabase.from('transaction_items').update({ created_at: targetTime }).eq('transaction_id', trxData.id),
+          supabase.from('incomes').update({ created_at: targetTime, date: txDate }).eq('transaction_id', trxData.id)
+        ])
+      }
+    }
+
     setProcessing(false)
     if (error) {
       const msg = error.message.includes('Stok tidak mencukupi') ? error.message : `Transaksi gagal: ${error.message}`
@@ -198,6 +212,7 @@ export function Cashier() {
   function resetTransaction() {
     setCart([]); setDiscount(0); setPaidAmount(0); setPaymentMethod('CASH')
     setCompleted(null); setTxError(''); setSelectedMechanicId(''); setMotorType('')
+    setTxDate(new Date().toISOString().split('T')[0])
   }
 
   function printReceipt() {
@@ -437,6 +452,17 @@ export function Cashier() {
         </div>
 
         <div className="px-4 py-3 border-t space-y-2">
+          {/* Date input */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Tanggal</span>
+            <input
+              type="date"
+              value={txDate}
+              onChange={e => setTxDate(e.target.value)}
+              className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]"
+            />
+          </div>
+
           {/* Motor input */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">Jenis Motor</span>
