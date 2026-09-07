@@ -35,6 +35,7 @@ type CompletedTransaction = {
   change_amount: number
   items: CartItem[]
   mechanic_name: string
+  motor_type: string
 }
 
 export function Cashier() {
@@ -47,6 +48,7 @@ export function Cashier() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'TRANSFER'>('CASH')
   const [paidAmount, setPaidAmount] = useState(0)
   const [selectedMechanicId, setSelectedMechanicId] = useState('')
+  const [motorType, setMotorType] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({ name: '', type: 'Jasa', price: '', qty: '1' })
   const [manualError, setManualError] = useState('')
@@ -166,7 +168,10 @@ export function Cashier() {
       p_paid_amount: paid,
       p_change_amount: paymentMethod === 'CASH' ? paid - total : 0,
       p_cash_session_id: null,
-      p_notes: selectedMechanicId ? `Mekanik: ${mechanics.find(m => m.id === selectedMechanicId)?.name ?? ''}` : '',
+      p_notes: [
+        selectedMechanicId ? `Mekanik: ${mechanics.find(m => m.id === selectedMechanicId)?.name ?? ''}` : '',
+        motorType ? `Motor: ${motorType}` : ''
+      ].filter(Boolean).join(' | ') || '',
       p_created_by: user?.id ?? null,
       p_items: items,
     })
@@ -178,12 +183,12 @@ export function Cashier() {
     qc.invalidateQueries({ queryKey: ['cashier-products'] })
     qc.invalidateQueries({ queryKey: ['transactions'] })
     const mechName = mechanics.find(m => m.id === selectedMechanicId)?.name ?? '-'
-    setCompleted({ transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName })
+    setCompleted({ transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName, motor_type: motorType })
   }
 
   function resetTransaction() {
     setCart([]); setDiscount(0); setPaidAmount(0); setPaymentMethod('CASH')
-    setCompleted(null); setTxError(''); setSelectedMechanicId('')
+    setCompleted(null); setTxError(''); setSelectedMechanicId(''); setMotorType('')
   }
 
   function printReceipt() {
@@ -229,6 +234,7 @@ export function Cashier() {
             <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-bold text-gray-900">{formatRupiah(completed.total)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Pembayaran</span><span className="font-medium">{completed.payment_method}</span></div>
             {completed.payment_method === 'CASH' && <div className="flex justify-between"><span className="text-gray-500">Kembalian</span><span className="font-bold text-green-600">{formatRupiah(completed.change_amount)}</span></div>}
+            {completed.motor_type && <div className="flex justify-between"><span className="text-gray-500">Jenis Motor</span><span className="font-medium">{completed.motor_type}</span></div>}
             {completed.mechanic_name !== '-' && <div className="flex justify-between"><span className="text-gray-500">Mekanik</span><span className="font-medium">{completed.mechanic_name}</span></div>}
           </div>
           <div className="flex gap-2 mt-6 flex-wrap">
@@ -268,7 +274,8 @@ export function Cashier() {
           <div className="row"><span className="bold">No. Transaksi:</span><span>{completed.transaction_number}</span></div>
           <div className="row"><span>Tanggal:</span><span>{dateStr}</span></div>
           <div className="row"><span>Jam:</span><span>{timeStr}</span></div>
-          {completed.mechanic_name !== '-' && <div className="row"><span>Mekanik:</span><span className="bold">{completed.mechanic_name}</span></div>}
+          {completed.motor_type && <div className="row"><span>Motor:</span><span className="bold">{completed.motor_type}</span></div>}
+            {completed.mechanic_name !== '-' && <div className="row"><span>Mekanik:</span><span className="bold">{completed.mechanic_name}</span></div>}
           <hr className="separator" />
 
           {/* Items */}
@@ -404,6 +411,18 @@ export function Cashier() {
         </div>
 
         <div className="px-4 py-3 border-t space-y-2">
+          {/* Motor input */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Jenis Motor</span>
+            <input
+              type="text"
+              placeholder="Vario 125, Beat, dll..."
+              value={motorType}
+              onChange={e => setMotorType(e.target.value)}
+              className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]"
+            />
+          </div>
+
           {/* Mechanic selector */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">Mekanik</span>
