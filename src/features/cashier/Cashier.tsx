@@ -22,7 +22,7 @@ type CartItem = {
   max_stock?: number
 }
 
-type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null }
+type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null; category: string | null }
 type Service = { id: string; service_code: string; name: string; selling_price: number }
 type Mechanic = { id: string; name: string }
 
@@ -49,6 +49,7 @@ export function Cashier() {
   const [paidAmount, setPaidAmount] = useState(0)
   const [selectedMechanicId, setSelectedMechanicId] = useState('')
   const [motorType, setMotorType] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({ name: '', type: 'Jasa', price: '', qty: '1' })
   const [manualError, setManualError] = useState('')
@@ -61,7 +62,7 @@ export function Cashier() {
   const { data: products = [] } = useQuery({
     queryKey: ['cashier-products'],
     queryFn: async () => {
-      const { data } = await supabase.from('products').select('id,sku,name,selling_price,stock,brand').eq('status', 'ACTIVE').order('name')
+      const { data } = await supabase.from('products').select('id,sku,name,selling_price,stock,brand,category').eq('status', 'ACTIVE').order('name')
       return (data ?? []) as Product[]
     }
   })
@@ -69,7 +70,7 @@ export function Cashier() {
   const { data: services = [] } = useQuery({
     queryKey: ['cashier-services'],
     queryFn: async () => {
-      const { data } = await supabase.from('services').select('id,service_code,name,selling_price').eq('active', true).order('name')
+      const { data } = await supabase.from('services').select('id,service_code,name,selling_price,category').eq('active', true).order('name')
       return (data ?? []) as Service[]
     }
   })
@@ -83,12 +84,20 @@ export function Cashier() {
     }
   })
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()) || (p.brand ?? '').toLowerCase().includes(search.toLowerCase())
-  )
-  const filteredServices = services.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
-  )
+  // Kumpulkan daftar kategori unik dari produk
+  const productCategories = ['Semua', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))]
+  const serviceCategories = ['Semua', ...Array.from(new Set(services.map((s: any) => s.category).filter(Boolean)))]
+
+  const filteredProducts = products.filter(p => {
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()) || (p.brand ?? '').toLowerCase().includes(search.toLowerCase())
+    const matchCategory = !categoryFilter || categoryFilter === 'Semua' || p.category === categoryFilter
+    return matchSearch && matchCategory
+  })
+  const filteredServices = services.filter((s: any) => {
+    const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
+    const matchCategory = !categoryFilter || categoryFilter === 'Semua' || s.category === categoryFilter
+    return matchSearch && matchCategory
+  })
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const total = Math.max(0, subtotal - discount)
@@ -334,12 +343,29 @@ export function Cashier() {
         {stockWarning && <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-lg px-4 py-2.5 text-sm">{stockWarning}</div>}
 
         <div className="flex gap-2">
-          <button onClick={() => setTab('PRODUCT')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${tab === 'PRODUCT' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+          <button onClick={() => { setTab('PRODUCT'); setCategoryFilter('') }} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${tab === 'PRODUCT' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
             <Package className="h-4 w-4" /> Produk
           </button>
-          <button onClick={() => setTab('SERVICE')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${tab === 'SERVICE' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+          <button onClick={() => { setTab('SERVICE'); setCategoryFilter('') }} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${tab === 'SERVICE' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
             <Wrench className="h-4 w-4" /> Jasa
           </button>
+        </div>
+
+        {/* Category filter chips */}
+        <div className="flex gap-2 flex-wrap">
+          {(tab === 'PRODUCT' ? productCategories : serviceCategories).map(cat => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat === 'Semua' ? '' : cat)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                (cat === 'Semua' && !categoryFilter) || categoryFilter === cat
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-primary hover:text-primary'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:max-h-[calc(100vh-160px)] overflow-y-auto pr-1 pb-4">
