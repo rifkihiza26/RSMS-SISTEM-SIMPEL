@@ -131,7 +131,7 @@ export function Services() {
 
       <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 shadow-sm">
         <Search className="h-4 w-4 text-gray-400" />
-        <input type="text" placeholder="Cari nama atau kode jasa..." className="flex-1 text-sm outline-none bg-transparent" value={search} onChange={e => setSearch(e.target.value)} />
+        <input type="text" placeholder="Cari nama atau kode jasa..." className="flex-1 text-sm outline-none bg-transparent min-w-0 w-full" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       <div className="bg-white border rounded-xl shadow-sm overflow-hidden">

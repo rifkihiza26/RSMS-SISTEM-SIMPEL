@@ -88,10 +88,10 @@ export function Transactions() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-gray-900">Transaksi</h1>
 
-      <div className="bg-white border rounded-xl shadow-sm p-4 flex flex-wrap gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-48 border rounded-lg px-3 py-2">
+      <div className="bg-white border rounded-xl shadow-sm p-4 flex flex-wrap gap-2 w-full">
+        <div className="flex items-center gap-2 flex-1 min-w-0 border rounded-lg px-3 py-2 overflow-hidden">
           <Search className="h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Cari nomor transaksi..." className="flex-1 text-sm outline-none" value={search} onChange={e => setSearch(e.target.value)} />
+          <input type="text" placeholder="Cari nomor transaksi..." className="flex-1 text-sm outline-none min-w-0 w-full" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />

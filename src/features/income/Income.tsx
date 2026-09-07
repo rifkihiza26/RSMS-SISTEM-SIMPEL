@@ -142,10 +142,10 @@ export function Income() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] bg-white border rounded-lg px-3 py-2 shadow-sm">
+      <div className="flex flex-wrap gap-2 w-full">
+        <div className="flex items-center gap-2 flex-1 min-w-0 bg-white border rounded-lg px-3 py-2 shadow-sm overflow-hidden">
           <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
-          <input type="text" placeholder="Cari kategori atau keterangan..." className="flex-1 text-sm outline-none bg-transparent" value={search} onChange={e => setSearch(e.target.value)} />
+          <input type="text" placeholder="Cari kategori atau keterangan..." className="flex-1 text-sm outline-none bg-transparent min-w-0 w-full" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2 shadow-sm">
           <Calendar className="h-4 w-4 text-gray-400" />

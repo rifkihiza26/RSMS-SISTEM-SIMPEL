@@ -185,7 +185,7 @@ export function Products() {
         <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
         <input
           type="text" placeholder="Cari nama, SKU, atau brand..."
-          className="flex-1 text-sm outline-none bg-transparent"
+          className="flex-1 text-sm outline-none bg-transparent min-w-0 w-full"
           value={search} onChange={e => setSearch(e.target.value)}
         />
       </div>

@@ -145,13 +145,13 @@ export function Inventory() {
 
       {tab === 'stock' && (
         <>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 w-full">
             <div className="flex-1 min-w-[200px] flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 shadow-sm">
               <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <input
                 type="text"
                 placeholder="Cari nama, SKU, brand..."
-                className="flex-1 text-sm outline-none bg-transparent"
+                className="flex-1 text-sm outline-none bg-transparent min-w-0 w-full"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
