@@ -58,7 +58,7 @@ export function Products() {
   const { data: categories = [] } = useQuery({
     queryKey: ['product_categories'],
     queryFn: async () => {
-      const { data } = await supabase.from('product_categories').select('*').order('sku')
+      const { data } = await supabase.from('product_categories').select('*').order('name')
       return (data ?? []) as Category[]
     }
   })
