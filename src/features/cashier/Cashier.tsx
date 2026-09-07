@@ -22,7 +22,7 @@ type CartItem = {
   max_stock?: number
 }
 
-type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null; category: string | null }
+type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null; product_categories?: { name: string } | { name: string }[] | null }
 type Service = { id: string; service_code: string; name: string; selling_price: number }
 type Mechanic = { id: string; name: string }
 
@@ -62,7 +62,7 @@ export function Cashier() {
   const { data: products = [] } = useQuery({
     queryKey: ['cashier-products'],
     queryFn: async () => {
-      const { data } = await supabase.from('products').select('id,sku,name,selling_price,stock,brand,category').eq('status', 'ACTIVE').order('name')
+      const { data } = await supabase.from('products').select('id,sku,name,selling_price,stock,brand,product_categories(name)').eq('status', 'ACTIVE').order('name')
       return (data ?? []) as Product[]
     }
   })
@@ -70,7 +70,7 @@ export function Cashier() {
   const { data: services = [] } = useQuery({
     queryKey: ['cashier-services'],
     queryFn: async () => {
-      const { data } = await supabase.from('services').select('id,service_code,name,selling_price,category').eq('active', true).order('name')
+      const { data } = await supabase.from('services').select('id,service_code,name,selling_price').eq('active', true).order('name')
       return (data ?? []) as Service[]
     }
   })
@@ -85,17 +85,17 @@ export function Cashier() {
   })
 
   // Kumpulkan daftar kategori unik dari produk
-  const productCategories = ['Semua', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))]
-  const serviceCategories = ['Semua', ...Array.from(new Set(services.map((s: any) => s.category).filter(Boolean)))]
+  const productCategories = ['Semua', ...Array.from(new Set(products.map(p => ((Array.isArray(p.product_categories) ? p.product_categories[0]?.name : p.product_categories?.name) || '')).filter(Boolean)))]
+  const serviceCategories = ['Semua']
 
   const filteredProducts = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()) || (p.brand ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchCategory = !categoryFilter || categoryFilter === 'Semua' || p.category === categoryFilter
+    const matchCategory = !categoryFilter || categoryFilter === 'Semua' || ((Array.isArray(p.product_categories) ? p.product_categories[0]?.name : p.product_categories?.name) === categoryFilter)
     return matchSearch && matchCategory
   })
   const filteredServices = services.filter((s: any) => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
-    const matchCategory = !categoryFilter || categoryFilter === 'Semua' || s.category === categoryFilter
+    const matchCategory = true
     return matchSearch && matchCategory
   })
 
@@ -356,7 +356,7 @@ export function Cashier() {
           {(tab === 'PRODUCT' ? productCategories : serviceCategories).map(cat => (
             <button
               key={cat}
-              onClick={() => setCategoryFilter(cat === 'Semua' ? '' : cat)}
+              onClick={() => setCategoryFilter(cat === 'Semua' ? '' : (cat || ''))}
               className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
                 (cat === 'Semua' && !categoryFilter) || categoryFilter === cat
                   ? 'bg-primary text-white border-primary'
