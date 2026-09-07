@@ -23,7 +23,7 @@ export function Services() {
   const { data: services = [], isLoading } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
-      const { data } = await supabase.from('services').select('*').order('name')
+      const { data } = await supabase.from('services').select('*').order('sku')
       return (data ?? []) as Service[]
     }
   })

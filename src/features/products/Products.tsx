@@ -49,7 +49,7 @@ export function Products() {
       const { data, error } = await supabase
         .from('products')
         .select('*, product_categories(name)')
-        .order('name')
+        .order('sku')
       if (error) { console.error(error); throw error }
       return data as Product[]
     }
@@ -58,7 +58,7 @@ export function Products() {
   const { data: categories = [] } = useQuery({
     queryKey: ['product_categories'],
     queryFn: async () => {
-      const { data } = await supabase.from('product_categories').select('*').order('name')
+      const { data } = await supabase.from('product_categories').select('*').order('sku')
       return (data ?? []) as Category[]
     }
   })
