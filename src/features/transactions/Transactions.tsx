@@ -191,7 +191,7 @@ export function Transactions() {
               <div className="hidden">
                 <div id="reprint-receipt" className="bg-white text-black w-[400px] p-6 text-sm font-sans mx-auto">
                   <div className="text-center mb-6">
-                    <img src="/logo.png" alt="Logo" className="h-14 mx-auto mb-2 grayscale" />
+                    <img src="/logo.png" alt="Logo" className="h-14 mx-auto mb-2" />
                     <h2 className="text-xl font-bold font-serif mb-1">RAKYAT SINTING</h2>
                     <p className="text-xs text-gray-600 leading-tight">Jln. Pejaten Raya RT.01/RW.07 No. 3<br />Kecamatan Pasar Minggu, Jakarta Selatan<br />WA: 0813-8760-7676</p>
                   </div>

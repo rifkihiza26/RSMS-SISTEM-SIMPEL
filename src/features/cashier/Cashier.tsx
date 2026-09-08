@@ -233,7 +233,7 @@ export function Cashier() {
       .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; margin-bottom: 2px; }
       .row-item-name { flex: 1; }
       .row-item-price { white-space: nowrap; }
-      .logo { width: 80px; height: 80px; object-fit: contain; filter: invert(0); margin: 0 auto 6px; display: block; }
+      .logo { width: 140px; height: auto; object-fit: contain; margin: 0 auto 6px; display: block; }
       .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin: 4px 0; }
       .badge { display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: 9px; border-radius: 2px; margin-left: 4px; }
       .footer-msg { margin-top: 12px; font-size: 11px; }
@@ -306,7 +306,7 @@ export function Cashier() {
           <div className="bold small" style={{marginBottom:'4px'}}>ITEM PEMBELIAN</div>
           {completed.items.map(i => (
             <div key={i.id} style={{marginBottom:'5px'}}>
-              <div className="row-item-name bold" style={{fontSize:'11px'}}>{i.name}<span className="badge">{i.type}</span></div>
+              <div className="row-item-name bold" style={{fontSize:'11px'}}>{i.name}</div>
               <div className="row">
                 <span className="small">{i.qty} × {formatRupiah(i.price)}</span>
                 <span className="small bold">{formatRupiah(i.price * i.qty)}</span>
