@@ -239,7 +239,12 @@ export function Cashier() {
       .badge { display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: 9px; border-radius: 2px; margin-left: 4px; }
       .footer-msg { margin-top: 12px; font-size: 11px; }
     </style>
-    </head><body>${el.innerHTML}</body></html>`)
+    </head><body>
+    <div class="no-print" style="text-align:center;margin-bottom:16px;padding:12px;background:#f3f4f6;font-family:sans-serif;border-radius:8px;">
+      <button onclick="window.close()" style="padding:10px 22px;background:#fff;border:1px solid #ccc;border-radius:6px;font-weight:bold;margin-right:10px;cursor:pointer;font-size:13px;">✕ Kembali</button>
+      <button onclick="window.print()" style="padding:10px 22px;background:#0ea5e9;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;">🖨️ Print Ulang</button>
+    </div>
+    ${el.innerHTML}</body></html>`)
     win.document.close()
     setTimeout(() => win.print(), 400)
   }
