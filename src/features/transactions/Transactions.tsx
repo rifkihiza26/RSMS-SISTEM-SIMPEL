@@ -190,12 +190,13 @@ export function Transactions() {
                   const win = window.open('', '_blank')
                   if (!win) return
                   win.document.write('<html><head><title>Struk - ' + detailTrx.transaction_number + '</title>')
-                  win.document.write('<style>body{font-family:monospace;font-size:12px;margin:0;padding:16px;width:320px;color:black;background:white}.center{text-align:center}.row{display:flex;justify-content:space-between;margin-bottom:3px}.bold{font-weight:bold}.small{font-size:11px}.separator{border-top:1px dashed #000;margin:6px 0;border-bottom:none}.separator-solid{border-top:1px solid #000;margin:6px 0;border-bottom:none}.logo{width:140px;height:auto;object-fit:contain;margin:0 auto 6px;display:block}.row-item-name{margin-bottom:2px}</style>')
+                  win.document.write('<style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:16px;width:320px;color:black;background:white}.center{text-align:center}.row{display:flex;justify-content:space-between;margin-bottom:3px}.bold{font-weight:bold}.small{font-size:11px}.separator{border-top:1px dashed #000;margin:6px 0;border-bottom:none}.separator-solid{border-top:1px solid #000;margin:6px 0;border-bottom:none}.logo{width:140px;height:auto;object-fit:contain;margin:0 auto 6px;display:block}.row-item-name{margin-bottom:2px}</style>')
                   win.document.write('</head><body>')
+                  win.document.write('<div class="no-print" style="text-align:center; margin-bottom: 20px; padding: 15px; background: #f3f4f6; font-family: sans-serif;"><button onclick="window.close()" style="padding: 10px 20px; background: #fff; border: 1px solid #ccc; border-radius: 6px; font-weight: bold; margin-right: 10px; cursor: pointer;">Kembali</button><button onclick="window.print()" style="padding: 10px 20px; background: #0ea5e9; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Print Ulang</button></div>')
                   win.document.write(el.outerHTML)
                   win.document.write('</body></html>')
                   win.document.close()
-                  setTimeout(() => { win.print(); win.close() }, 500)
+                  setTimeout(() => { win.print() }, 500)
                 }} className="flex-1 bg-primary text-white hover:bg-primary/90 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Print Struk</button>
                 <button onClick={() => downloadPDF('reprint-receipt', 'Invoice-' + detailTrx.transaction_number)} className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2">⬇️ PDF</button>
               </div>

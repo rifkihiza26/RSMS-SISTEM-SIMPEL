@@ -221,6 +221,7 @@ export function Cashier() {
     const win = window.open('', '_blank')
     if (!win) return
     win.document.write(`<html><head><title>Struk - ${SHOP_NAME}</title>
+    <style>@media print { .no-print { display: none !important; } }</style>
     <style>
       * { margin:0; padding:0; box-sizing:border-box; }
       body { font-family: 'Courier New', monospace; font-size: 12px; background: #fff; color: #000; max-width: 320px; margin: 0 auto; padding: 16px; }
