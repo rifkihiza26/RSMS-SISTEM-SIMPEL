@@ -17,9 +17,12 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   const wasHidden = element.style.display === 'none' || element.classList.contains('hidden')
   if (wasHidden) {
     element.classList.remove('hidden')
-    element.style.visibility = 'hidden'
+    element.style.opacity = '0'
+    element.style.pointerEvents = 'none'
     element.style.position = 'fixed'
     element.style.top = '-9999px'
+    element.style.left = '-9999px'
+    element.style.zIndex = '-1'
   }
 
   try {
@@ -64,9 +67,12 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   } finally {
     if (wasHidden) {
       element.classList.add('hidden')
-      element.style.visibility = ''
+      element.style.opacity = ''
+      element.style.pointerEvents = ''
       element.style.position = ''
       element.style.top = ''
+      element.style.left = ''
+      element.style.zIndex = ''
     }
   }
 }
