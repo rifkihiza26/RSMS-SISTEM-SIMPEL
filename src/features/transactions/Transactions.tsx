@@ -162,7 +162,7 @@ export function Transactions() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-gray-900">{i.item_name}</span>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${i.item_type === 'PRODUCT' ? 'bg-primary/10 text-primary' : i.item_type === 'SERVICE' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{i.item_type}</span>
+                          
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">{i.quantity} × {formatRupiah(i.unit_price)}</p>
                       </div>
@@ -184,10 +184,23 @@ export function Transactions() {
                 )}
               
               <div className="flex gap-2">
-                <button onClick={() => downloadPDF('reprint-receipt', 'Invoice-' + detailTrx.transaction_number)} className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Cetak PDF</button>
+                <button onClick={() => {
+                  const el = document.getElementById('reprint-receipt')
+                  if (!el) return
+                  const win = window.open('', '_blank')
+                  if (!win) return
+                  win.document.write('<html><head><title>Struk - ' + detailTrx.transaction_number + '</title>')
+                  win.document.write('<style>body{font-family:monospace;font-size:12px;margin:0;padding:16px;width:320px;color:black;background:white}.center{text-align:center}.row{display:flex;justify-content:space-between;margin-bottom:3px}.bold{font-weight:bold}.small{font-size:11px}.separator{border-top:1px dashed #000;margin:6px 0;border-bottom:none}.separator-solid{border-top:1px solid #000;margin:6px 0;border-bottom:none}.logo{width:140px;height:auto;object-fit:contain;margin:0 auto 6px;display:block}.row-item-name{margin-bottom:2px}</style>')
+                  win.document.write('</head><body>')
+                  win.document.write(el.outerHTML)
+                  win.document.write('</body></html>')
+                  win.document.close()
+                  setTimeout(() => { win.print(); win.close() }, 500)
+                }} className="flex-1 bg-primary text-white hover:bg-primary/90 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Print Struk</button>
+                <button onClick={() => downloadPDF('reprint-receipt', 'Invoice-' + detailTrx.transaction_number)} className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2">⬇️ PDF</button>
               </div>
 
-              {/* Hidden Receipt Format for printing */}
+                            {/* Hidden Receipt Format for printing */}
               <div className="hidden">
                 <div id="reprint-receipt" className="bg-white text-black w-[400px] p-6 text-sm font-sans mx-auto">
                   <div className="text-center mb-6">
