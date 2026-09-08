@@ -40,7 +40,7 @@ function Badge({ method }: { method: string }) {
 }
 
 export function Transactions() {
-  const { isOwner } = useAuth()
+  const { isOwner, isAdmin } = useAuth()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -131,7 +131,7 @@ export function Transactions() {
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{t.profiles?.full_name ?? '-'}</td>
                     <td className="px-4 py-3 text-right flex justify-end gap-1">
                       <button onClick={() => setDetailId(t.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Detail"><Eye className="h-4 w-4" /></button>
-                      {isOwner && <button onClick={() => { if(confirm('Yakin hapus transaksi beserta itemnya? Pemasukan terkait akan terhapus juga otomatis jika ada cascade, tapi stok tidak kembali otomatis.')) deleteMutation.mutate(t.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}
+                      {(isOwner || isAdmin) && <button onClick={() => { if(confirm('Yakin hapus transaksi beserta itemnya? Pemasukan terkait akan terhapus juga otomatis jika ada cascade, tapi stok tidak kembali otomatis.')) deleteMutation.mutate(t.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}
                     </td>
                   </tr>
                 ))}
