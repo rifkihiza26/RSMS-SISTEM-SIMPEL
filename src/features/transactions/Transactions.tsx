@@ -202,36 +202,61 @@ export function Transactions() {
               </div>
 
                             {/* Hidden Receipt Format for printing */}
-              <div className="hidden">
-                <div id="reprint-receipt" className="bg-white text-black w-[400px] p-6 text-sm font-sans mx-auto">
-                  <div className="text-center mb-6">
-                    <img src="/logo.png" alt="Logo" className="h-14 mx-auto mb-2" />
-                    <h2 className="text-xl font-bold font-serif mb-1">RAKYAT SINTING</h2>
-                    <p className="text-xs text-gray-600 leading-tight">Jln. Pejaten Raya RT.01/RW.07 No. 3<br />Kecamatan Pasar Minggu, Jakarta Selatan<br />WA: 0813-8760-7676</p>
+              <div id="reprint-receipt" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
+                {/* Header */}
+                <div style={{textAlign:'center'}}>
+                  <img src="/logo.png" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
+                  <div style={{fontWeight:'bold', fontSize:'13px'}}>RAKYAT SINTING MATIC SHOP</div>
+                  <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>Jln. Pejaten Raya RT.01/RW.07 No. 3, Kel. Pejaten Barat, Kec. Pasar Minggu, Jakarta Selatan 12510</div>
+                  <div style={{fontSize:'10px'}}>WA / Telp: 0813-8760-7676</div>
+                </div>
+                <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
+
+                {/* Transaction Info */}
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{detailTrx.transaction_number}</span></div>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{new Date(detailTrx.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</span></div>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{new Date(detailTrx.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                {detailTrx.notes && detailTrx.notes.split(' | ').map((n: string, i: number) => {
+                   const [k, v] = n.split(': ')
+                   return k && v ? <div key={i} style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>{k}:</span><span style={{fontWeight:'bold'}}>{v}</span></div> : null
+                })}
+                <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+
+                {/* Items */}
+                <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
+                {detailItems.map((i: any) => (
+                  <div key={i.id} style={{marginBottom:'5px'}}>
+                    <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.item_name}</div>
+                    <div style={{display:'flex', justifyContent:'space-between'}}>
+                      <span style={{fontSize:'11px'}}>{i.quantity} × {formatRupiah(i.unit_price)}</span>
+                      <span style={{fontSize:'11px', fontWeight:'bold'}}>{formatRupiah(i.subtotal)}</span>
+                    </div>
                   </div>
-                  <div className="border-t border-b border-dashed border-gray-300 py-2 mb-4 text-xs space-y-1">
-                    <div className="flex justify-between"><span>No: {detailTrx.transaction_number}</span><span>{formatDateShort(detailTrx.created_at)}</span></div>
-                    <div className="flex justify-between"><span>KSR: {detailTrx.profiles?.full_name ?? '-'}</span><span>{detailTrx.notes || '-'}</span></div>
+                ))}
+                <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+
+                {/* Totals */}
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(detailTrx.subtotal)}</span></div>
+                {detailTrx.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(detailTrx.discount)}</span></div>}
+                <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(detailTrx.total)}</span></div>
+                <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+
+                {/* Payment */}
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{detailTrx.payment_method}</span></div>
+                {detailTrx.payment_method === 'CASH' && (
+                  <div style={{width:'100%'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(detailTrx.paid_amount)}</span></div>
+                    <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(detailTrx.change_amount)}</span></div>
                   </div>
-                  <div className="space-y-3 mb-4">
-                    {detailItems.map(item => (
-                      <div key={item.id} className="text-xs">
-                        <div className="font-semibold">{item.item_name}</div>
-                        <div className="flex justify-between text-gray-600">
-                          <span>{item.quantity} x {formatRupiah(item.unit_price)}</span>
-                          <span>{formatRupiah(item.subtotal)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="border-t border-dashed border-gray-300 pt-3 text-xs space-y-1.5">
-                    <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatRupiah(detailTrx.subtotal)}</span></div>
-                    {detailTrx.discount > 0 && <div className="flex justify-between text-gray-600"><span>Diskon</span><span>-{formatRupiah(detailTrx.discount)}</span></div>}
-                    <div className="flex justify-between font-bold text-sm pt-1"><span>TOTAL</span><span>{formatRupiah(detailTrx.total)}</span></div>
-                    <div className="flex justify-between pt-1"><span>{detailTrx.payment_method}</span><span>{detailTrx.payment_method === 'CASH' ? formatRupiah(detailTrx.paid_amount) : formatRupiah(detailTrx.total)}</span></div>
-                    {detailTrx.payment_method === 'CASH' && <div className="flex justify-between"><span>Kembali</span><span>{formatRupiah(detailTrx.change_amount)}</span></div>}
-                  </div>
-                  <div className="text-center mt-8 text-xs text-gray-500 italic border-t border-dashed border-gray-300 pt-4">Terima kasih atas kunjungan Anda.<br/>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</div>
+                )}
+                <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
+
+                {/* Footer */}
+                <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
+                  <div>Terima kasih telah mempercayakan</div>
+                  <div>kendaraan Anda kepada kami!</div>
+                  <div style={{marginTop:'6px', fontWeight:'bold'}}>— Rakyat Sinting Matic Shop —</div>
                 </div>
               </div>
 </div>
