@@ -225,7 +225,7 @@ export function Cashier() {
     const win = window.open('', '_blank')
     if (!win) return
     win.document.write(`<html><head><title>Struk - ${SHOP_NAME}</title>
-    <style>@media print { .no-print { display: none !important; } }</style>
+    <style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:16px;width:320px;color:black;background:white}</style>
     <style>
       * { margin:0; padding:0; box-sizing:border-box; }
       body { font-family: 'Courier New', monospace; font-size: 12px; background: #fff; color: #000; max-width: 320px; margin: 0 auto; padding: 16px; }
@@ -310,54 +310,56 @@ export function Cashier() {
         </div>
 
         {/* Hidden receipt for print */}
-        <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px'}}>
+        <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
           {/* Header */}
-          <div className="center">
-            <img src="/logo.png" alt="Logo" className="logo" />
-            <div className="bold" style={{fontSize:'13px'}}>{SHOP_NAME}</div>
-            <div className="small" style={{marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
-            <div className="small">WA / Telp: {SHOP_PHONE}</div>
+          <div style={{textAlign:'center'}}>
+            <img src="/logo.png" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
+            <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
+            <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
+            <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>
           </div>
-          <hr className="separator-solid" />
+          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
 
           {/* Transaction Info */}
-          <div className="row"><span className="bold">No. Transaksi:</span><span>{completed.transaction_number}</span></div>
-          <div className="row"><span>Tanggal:</span><span>{dateStr}</span></div>
-          <div className="row"><span>Jam:</span><span>{timeStr}</span></div>
-          {completed.motor_type && <div className="row"><span>Motor:</span><span className="bold">{completed.motor_type}</span></div>}
-            {completed.mechanic_name !== '-' && <div className="row"><span>Mekanik:</span><span className="bold">{completed.mechanic_name}</span></div>}
-          <hr className="separator" />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{completed.transaction_number}</span></div>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{dateStr}</span></div>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{timeStr}</span></div>
+          {completed.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{completed.motor_type}</span></div>}
+          {completed.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{completed.mechanic_name}</span></div>}
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
 
           {/* Items */}
-          <div className="bold small" style={{marginBottom:'4px'}}>ITEM PEMBELIAN</div>
+          <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
           {completed.items.map(i => (
             <div key={i.id} style={{marginBottom:'5px'}}>
-              <div className="row-item-name bold" style={{fontSize:'11px'}}>{i.name}</div>
-              <div className="row">
-                <span className="small">{i.qty} × {formatRupiah(i.price)}</span>
-                <span className="small bold">{formatRupiah(i.price * i.qty)}</span>
+              <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.name}</div>
+              <div style={{display:'flex', justifyContent:'space-between'}}>
+                <span style={{fontSize:'11px'}}>{i.qty} × {formatRupiah(i.price)}</span>
+                <span style={{fontSize:'11px', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</span>
               </div>
             </div>
           ))}
-          <hr className="separator" />
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
 
           {/* Totals */}
-          <div className="row"><span>Subtotal</span><span>{formatRupiah(completed.subtotal)}</span></div>
-          {completed.discount > 0 && <div className="row"><span>Diskon</span><span>-{formatRupiah(completed.discount)}</span></div>}
-          <hr className="separator" />
-          <div className="total-row"><span>TOTAL</span><span>{formatRupiah(completed.total)}</span></div>
-          <hr className="separator" />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(completed.subtotal)}</span></div>
+          {completed.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(completed.discount)}</span></div>}
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(completed.total)}</span></div>
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
 
           {/* Payment */}
-          <div className="row"><span>Metode Bayar</span><span className="bold">{completed.payment_method}</span></div>
-          {completed.payment_method === 'CASH' && <>
-            <div className="row"><span>Uang Diterima</span><span>{formatRupiah(completed.total + completed.change_amount)}</span></div>
-            <div className="row"><span>Kembalian</span><span className="bold">{formatRupiah(completed.change_amount)}</span></div>
-          </>}
-          <hr className="separator-solid" />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{completed.payment_method}</span></div>
+          {completed.payment_method === 'CASH' && (
+            <div style={{width:'100%'}}>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(completed.total + completed.change_amount)}</span></div>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(completed.change_amount)}</span></div>
+            </div>
+          )}
+          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
 
           {/* Footer */}
-          <div className="center footer-msg">
+          <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
             <div>Terima kasih telah mempercayakan</div>
             <div>kendaraan Anda kepada kami!</div>
             <div style={{marginTop:'6px', fontWeight:'bold'}}>— Rakyat Sinting Matic Shop —</div>
