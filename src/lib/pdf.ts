@@ -7,26 +7,26 @@ import html2canvas from 'html2canvas'
  * @param filename - Nama file PDF yang didownload (tanpa .pdf)
  */
 export async function downloadPDF(elementId: string, filename: string): Promise<void> {
-  const element = document.getElementById(elementId)
-  if (!element) {
+  const originalElement = document.getElementById(elementId)
+  if (!originalElement) {
     alert('Elemen tidak ditemukan.')
     return
   }
 
-  // Tampilkan element sementara jika hidden
-  const wasHidden = element.style.display === 'none' || element.classList.contains('hidden')
-  if (wasHidden) {
-    element.classList.remove('hidden')
-    element.style.opacity = '0'
-    element.style.pointerEvents = 'none'
-    element.style.position = 'fixed'
-    element.style.top = '-9999px'
-    element.style.left = '-9999px'
-    element.style.zIndex = '-1'
-  }
+  // Gunakan teknik clone node agar html2canvas bisa merender elemen dengan benar
+  // tanpa harus mengubah style elemen asli yang mungkin merusak UI
+  const clone = originalElement.cloneNode(true) as HTMLElement
+  
+  // Pastikan clone terlihat oleh html2canvas tapi tidak terlihat oleh user
+  clone.classList.remove('hidden')
+  clone.style.display = 'block'
+  clone.style.position = 'absolute'
+  clone.style.top = '-9999px' // Pindahkan keluar layar
+  clone.style.left = '-9999px'
+  document.body.appendChild(clone)
 
   try {
-    const canvas = await html2canvas(element, {
+    const canvas = await html2canvas(clone, {
       scale: 2,
       useCORS: true,
       allowTaint: true,
@@ -38,19 +38,15 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
     const imgWidth = canvas.width
     const imgHeight = canvas.height
 
-    // A4 = 210 x 297 mm
-    // Untuk struk thermal, pakai lebar 80mm
     const isReceipt = imgWidth < imgHeight * 0.7
 
     let pdfWidth: number
     let pdfHeight: number
 
     if (isReceipt) {
-      // Struk thermal - lebar 80mm
       pdfWidth = 80
       pdfHeight = (imgHeight * pdfWidth) / imgWidth
     } else {
-      // Laporan - A4
       pdfWidth = 210
       pdfHeight = (imgHeight * pdfWidth) / imgWidth
       if (pdfHeight > 297) pdfHeight = 297
@@ -65,15 +61,7 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, isReceipt ? pdfHeight : (imgHeight * pdfWidth) / imgWidth)
     pdf.save(`${filename}.pdf`)
   } finally {
-    if (wasHidden) {
-      element.classList.add('hidden')
-      element.style.opacity = ''
-      element.style.pointerEvents = ''
-      element.style.position = ''
-      element.style.top = ''
-      element.style.left = ''
-      element.style.zIndex = ''
-    }
+    document.body.removeChild(clone)
   }
 }
 
