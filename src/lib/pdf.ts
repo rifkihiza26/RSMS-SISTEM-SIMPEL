@@ -83,8 +83,12 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
  */
 export function shareViaWhatsApp(phone?: string, message?: string) {
   const msg = message ?? 'Halo, berikut struk transaksi dari Rakyat Sinting Matic Shop 🏍️'
-  const url = phone
-    ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
+  let formattedPhone = phone ? phone.replace(/\D/g, '') : ''
+  if (formattedPhone.startsWith('0')) {
+    formattedPhone = '62' + formattedPhone.substring(1)
+  }
+  const url = formattedPhone
+    ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`
   window.open(url, '_blank')
 }

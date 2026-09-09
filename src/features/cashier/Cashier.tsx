@@ -58,6 +58,8 @@ export function Cashier() {
   const [completed, setCompleted] = useState<CompletedTransaction | null>(null)
   const [processing, setProcessing] = useState(false)
   const [txError, setTxError] = useState('')
+  const [showWaInput, setShowWaInput] = useState(false)
+  const [waCustomerPhone, setWaCustomerPhone] = useState('')
   const receiptRef = useRef<HTMLDivElement>(null)
 
   const { data: products = [] } = useQuery({
@@ -213,6 +215,8 @@ export function Cashier() {
     setCart([]); setDiscount(0); setPaidAmount(0); setPaymentMethod('CASH')
     setCompleted(null); setTxError(''); setSelectedMechanicId(''); setMotorType('')
     setTxDate(new Date().toISOString().split('T')[0])
+    setShowWaInput(false)
+    setWaCustomerPhone('')
   }
 
   function printReceipt() {
@@ -278,12 +282,28 @@ export function Cashier() {
               <Download className="h-4 w-4" /> Download PDF
             </button>
           </div>
-          <button
-            onClick={() => shareViaWhatsApp(undefined, `Halo! Berikut struk transaksi ${completed.transaction_number} dari Rakyat Sinting Matic Shop 🏍️\nTotal: ${formatRupiah(completed.total)}\nMetode: ${completed.payment_method}${completed.mechanic_name !== '-' ? `\nMekanik: ${completed.mechanic_name}` : ''}\n\nTerima kasih sudah mempercayakan kendaraan Anda kepada kami! 🙏`)}
-            className="w-full mt-2 flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700"
-          >
-            <MessageCircle className="h-4 w-4" /> Kirim via WhatsApp
-          </button>
+          {showWaInput ? (
+            <div className="w-full mt-2 bg-gray-50 border rounded-lg p-3 space-y-2">
+              <label className="block text-xs font-medium text-gray-700">Nomor WA Customer</label>
+              <input type="text" placeholder="Contoh: 08123456789" value={waCustomerPhone} onChange={e => setWaCustomerPhone(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" autoFocus />
+              <div className="flex gap-2">
+                <button onClick={() => setShowWaInput(false)} className="flex-1 bg-white border border-gray-300 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-100">Batal</button>
+                <button onClick={async () => {
+                  if (!waCustomerPhone.trim()) return alert('Masukkan nomor WA terlebih dahulu!')
+                  await downloadPDF('receipt-pdf', `Struk-${completed.transaction_number}`)
+                  shareViaWhatsApp(waCustomerPhone, `Halo! Berikut struk transaksi ${completed.transaction_number} dari Rakyat Sinting Matic Shop 🏍️\nTotal: ${formatRupiah(completed.total)}\nMetode: ${completed.payment_method}${completed.mechanic_name !== '-' ? `\nMekanik: ${completed.mechanic_name}` : ''}\n\nTerima kasih sudah mempercayakan kendaraan Anda kepada kami! 🙏`)
+                  setShowWaInput(false)
+                }} className="flex-1 bg-green-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-700">Kirim WA</button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowWaInput(true)}
+              className="w-full mt-2 flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700"
+            >
+              <MessageCircle className="h-4 w-4" /> Kirim via WhatsApp
+            </button>
+          )}
           <button onClick={resetTransaction} className="w-full mt-2 bg-primary text-white rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90">
             Transaksi Baru
           </button>
