@@ -313,7 +313,7 @@ export function Cashier() {
         <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
           {/* Header */}
           <div style={{textAlign:'center'}}>
-            <img src="/logo.png" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
+            <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
             <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
             <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
             <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>

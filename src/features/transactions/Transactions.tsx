@@ -205,7 +205,7 @@ export function Transactions() {
               <div id="reprint-receipt" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
                 {/* Header */}
                 <div style={{textAlign:'center'}}>
-                  <img src="/logo.png" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
+                  <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
                   <div style={{fontWeight:'bold', fontSize:'13px'}}>RAKYAT SINTING MATIC SHOP</div>
                   <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>Jln. Pejaten Raya RT.01/RW.07 No. 3, Kel. Pejaten Barat, Kec. Pasar Minggu, Jakarta Selatan 12510</div>
                   <div style={{fontSize:'10px'}}>WA / Telp: 0813-8760-7676</div>
