@@ -191,7 +191,7 @@ export function Income() {
                     <td className="px-4 py-3 font-medium text-gray-900">{i.category}</td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell max-w-xs truncate" title={i.description || ''}>{i.description || '-'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-green-600">{formatRupiah(i.amount)}</td>
-                    <td className="px-4 py-3 text-right">{isOwner && <button onClick={() => { if(confirm('Yakin hapus data ini?')) deleteMutation.mutate(i.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}</td>
+                    <td className="px-4 py-3 text-right">{(isOwner || isAdmin) && <button onClick={() => { if(confirm('Yakin hapus data ini?')) deleteMutation.mutate(i.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}</td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${i.transaction_id ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                         {i.transaction_id ? 'KASIR' : 'MANUAL'}

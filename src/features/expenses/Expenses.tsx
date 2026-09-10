@@ -21,7 +21,7 @@ type Expense = {
 
 
 export function Expenses() {
-  const { user, isOwner } = useAuth()
+  const { user, isOwner, isAdmin } = useAuth()
   const qc = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [dateFilter, setDateFilter] = useState('')
@@ -208,7 +208,7 @@ export function Expenses() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell max-w-xs truncate" title={e.description || ''}>{e.description || '-'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-red-600">-{formatRupiah(e.amount)}</td>
-                    <td className="px-4 py-3 text-right">{isOwner && <button onClick={() => { if(confirm('Yakin hapus pengeluaran ini?')) deleteMutation.mutate(e.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}</td>
+                    <td className="px-4 py-3 text-right">{(isOwner || isAdmin) && <button onClick={() => { if(confirm('Yakin hapus pengeluaran ini?')) deleteMutation.mutate(e.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}</td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
                       <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">{e.payment_method}</span>
                     </td>
