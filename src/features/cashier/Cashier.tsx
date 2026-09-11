@@ -20,6 +20,7 @@ type CartItem = {
   service_id?: string
   sku?: string
   max_stock?: number
+  is_service: boolean
 }
 
 type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null; product_categories?: { name: string } | { name: string }[] | null }
@@ -173,7 +174,7 @@ export function Cashier() {
       updateSession({ cart: newCart.map(i => i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i) })
     } else {
       if (p.stock === 0) { setStockWarning(`Stok ${p.name} habis.`); setTimeout(() => setStockWarning(''), 3000); return }
-      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: p.name, type: 'PRODUCT', price: p.selling_price, qty: 1, product_id: p.id, sku: p.sku, max_stock: p.stock }] })
+      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: p.name, type: 'PRODUCT', price: p.selling_price, qty: 1, product_id: p.id, sku: p.sku, max_stock: p.stock, is_service: false }] })
     }
   }
 
@@ -182,7 +183,7 @@ export function Cashier() {
     if (ex) {
       updateSession({ cart: cart.map(i => i.service_id === s.id ? { ...i, qty: i.qty + 1 } : i) })
     } else {
-      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: s.name, type: 'SERVICE', price: s.selling_price, qty: 1, service_id: s.id, sku: s.service_code }] })
+      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: s.name, type: 'SERVICE', price: s.selling_price, qty: 1, service_id: s.id, sku: s.service_code, is_service: true }] })
     }
   }
 
@@ -211,7 +212,7 @@ export function Cashier() {
     const qty = manualForm.type === 'Jasa' ? 1 : parseInt(manualForm.qty)
     if (!price || price <= 0) return setManualError('Harga harus lebih dari 0.')
     if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.')
-    updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: manualForm.name.trim(), type: 'MANUAL', price, qty }] })
+    updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: manualForm.name.trim(), type: 'MANUAL', price, qty, is_service: manualForm.type === 'Jasa' }] })
     setManualForm({ name: '', type: 'Jasa', price: '', qty: '1' })
     setManualOpen(false)
   }
@@ -232,6 +233,7 @@ export function Cashier() {
       unit_price: i.price,
       subtotal: i.price * i.qty,
       stock_tracked: i.type === 'PRODUCT',
+      is_service: i.is_service,
     }))
     const { error } = await supabase.rpc('process_transaction', {
       p_transaction_number: trxNumber,
