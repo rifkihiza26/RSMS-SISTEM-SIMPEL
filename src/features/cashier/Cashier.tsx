@@ -38,29 +38,66 @@ type CompletedTransaction = {
   motor_type: string
 }
 
+// --- Per-session state ---
+type CartSession = {
+  id: string
+  label: string
+  cart: CartItem[]
+  discount: number
+  paymentMethod: 'CASH' | 'QRIS' | 'TRANSFER'
+  paidAmount: number
+  selectedMechanicId: string
+  motorType: string
+  txDate: string
+  txError: string
+  completed: CompletedTransaction | null
+  showWaInput: boolean
+  waCustomerPhone: string
+}
+
+function newSession(index: number): CartSession {
+  return {
+    id: crypto.randomUUID(),
+    label: `Antrian ${index}`,
+    cart: [],
+    discount: 0,
+    paymentMethod: 'CASH',
+    paidAmount: 0,
+    selectedMechanicId: '',
+    motorType: '',
+    txDate: new Date().toISOString().split('T')[0],
+    txError: '',
+    completed: null,
+    showWaInput: false,
+    waCustomerPhone: '',
+  }
+}
+
 export function Cashier() {
   const { user } = useAuth()
   const qc = useQueryClient()
+
+  // Global UI state
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<'PRODUCT' | 'SERVICE'>('PRODUCT')
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [discount, setDiscount] = useState(0)
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'TRANSFER'>('CASH')
-  const [paidAmount, setPaidAmount] = useState(0)
-  const [selectedMechanicId, setSelectedMechanicId] = useState('')
-  const [motorType, setMotorType] = useState('')
-  const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0])
   const [categoryFilter, setCategoryFilter] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({ name: '', type: 'Jasa', price: '', qty: '1' })
   const [manualError, setManualError] = useState('')
   const [stockWarning, setStockWarning] = useState('')
-  const [completed, setCompleted] = useState<CompletedTransaction | null>(null)
   const [processing, setProcessing] = useState(false)
-  const [txError, setTxError] = useState('')
-  const [showWaInput, setShowWaInput] = useState(false)
-  const [waCustomerPhone, setWaCustomerPhone] = useState('')
   const receiptRef = useRef<HTMLDivElement>(null)
+
+  // Multi-session state
+  const [sessions, setSessions] = useState<CartSession[]>([newSession(1)])
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => sessions[0].id)
+
+  // Init: make sure activeSessionId matches first session
+  const activeSession = sessions.find(s => s.id === activeSessionId) ?? sessions[0]
+
+  function updateSession(patch: Partial<CartSession>) {
+    setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...s, ...patch } : s))
+  }
 
   const { data: products = [] } = useQuery({
     queryKey: ['cashier-products'],
@@ -87,7 +124,6 @@ export function Cashier() {
     }
   })
 
-  // Kumpulkan daftar kategori unik dari produk
   const productCategories = ['Semua', ...Array.from(new Set(products.map(p => ((Array.isArray(p.product_categories) ? p.product_categories[0]?.name : p.product_categories?.name) || '')).filter(Boolean)))]
   const serviceCategories = ['Semua']
 
@@ -97,50 +133,76 @@ export function Cashier() {
     return matchSearch && matchCategory
   })
   const filteredServices = services.filter((s: any) => {
-    const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
-    const matchCategory = true
-    return matchSearch && matchCategory
+    return s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
   })
 
+  const { cart, discount, paymentMethod, paidAmount, selectedMechanicId, motorType, txDate, txError, completed, showWaInput, waCustomerPhone } = activeSession
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const total = Math.max(0, subtotal - discount)
   const change = paymentMethod === 'CASH' ? Math.max(0, paidAmount - total) : 0
 
+  // --- Session management ---
+  function addSession() {
+    if (sessions.length >= 5) return
+    const next = newSession(sessions.length + 1)
+    setSessions(prev => [...prev, next])
+    setActiveSessionId(next.id)
+  }
+
+  function removeSession(id: string) {
+    if (sessions.length === 1) {
+      const fresh = newSession(1)
+      setSessions([fresh])
+      setActiveSessionId(fresh.id)
+      return
+    }
+    const idx = sessions.findIndex(s => s.id === id)
+    const newSessions = sessions.filter(s => s.id !== id)
+    setSessions(newSessions)
+    if (activeSessionId === id) {
+      setActiveSessionId(newSessions[Math.max(0, idx - 1)].id)
+    }
+  }
+
+  // --- Cart operations ---
   function addProduct(p: Product) {
-    setCart(prev => {
-      const ex = prev.find(i => i.product_id === p.id)
-      if (ex) {
-        if (ex.qty >= (p.stock)) { setStockWarning(`Stok ${p.name} tidak mencukupi. Tersedia: ${p.stock}`); setTimeout(() => setStockWarning(''), 3000); return prev }
-        return prev.map(i => i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i)
-      }
-      if (p.stock === 0) { setStockWarning(`Stok ${p.name} habis.`); setTimeout(() => setStockWarning(''), 3000); return prev }
-      return [...prev, { id: crypto.randomUUID(), name: p.name, type: 'PRODUCT', price: p.selling_price, qty: 1, product_id: p.id, sku: p.sku, max_stock: p.stock }]
-    })
+    const newCart = [...cart]
+    const ex = newCart.find(i => i.product_id === p.id)
+    if (ex) {
+      if (ex.qty >= p.stock) { setStockWarning(`Stok ${p.name} tidak mencukupi. Tersedia: ${p.stock}`); setTimeout(() => setStockWarning(''), 3000); return }
+      updateSession({ cart: newCart.map(i => i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i) })
+    } else {
+      if (p.stock === 0) { setStockWarning(`Stok ${p.name} habis.`); setTimeout(() => setStockWarning(''), 3000); return }
+      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: p.name, type: 'PRODUCT', price: p.selling_price, qty: 1, product_id: p.id, sku: p.sku, max_stock: p.stock }] })
+    }
   }
 
   function addService(s: Service) {
-    setCart(prev => {
-      const ex = prev.find(i => i.service_id === s.id)
-      if (ex) return prev.map(i => i.service_id === s.id ? { ...i, qty: i.qty + 1 } : i)
-      return [...prev, { id: crypto.randomUUID(), name: s.name, type: 'SERVICE', price: s.selling_price, qty: 1, service_id: s.id, sku: s.service_code }]
-    })
+    const ex = cart.find(i => i.service_id === s.id)
+    if (ex) {
+      updateSession({ cart: cart.map(i => i.service_id === s.id ? { ...i, qty: i.qty + 1 } : i) })
+    } else {
+      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: s.name, type: 'SERVICE', price: s.selling_price, qty: 1, service_id: s.id, sku: s.service_code }] })
+    }
   }
 
   function changeQty(id: string, delta: number) {
-    setCart(prev => prev.map(i => {
-      if (i.id !== id) return i
-      const newQty = i.qty + delta
-      if (newQty < 1) return i
-      if (i.type === 'PRODUCT' && i.max_stock !== undefined && newQty > i.max_stock) {
-        setStockWarning(`Stok ${i.name} tidak mencukupi. Tersedia: ${i.max_stock}`)
-        setTimeout(() => setStockWarning(''), 3000)
-        return i
-      }
-      return { ...i, qty: newQty }
-    }))
+    updateSession({
+      cart: cart.map(i => {
+        if (i.id !== id) return i
+        const newQty = i.qty + delta
+        if (newQty < 1) return i
+        if (i.type === 'PRODUCT' && i.max_stock !== undefined && newQty > i.max_stock) {
+          setStockWarning(`Stok ${i.name} tidak mencukupi. Tersedia: ${i.max_stock}`)
+          setTimeout(() => setStockWarning(''), 3000)
+          return i
+        }
+        return { ...i, qty: newQty }
+      })
+    })
   }
 
-  function removeItem(id: string) { setCart(prev => prev.filter(i => i.id !== id)) }
+  function removeItem(id: string) { updateSession({ cart: cart.filter(i => i.id !== id) }) }
 
   function addManual(e: React.FormEvent) {
     e.preventDefault(); setManualError('')
@@ -149,15 +211,15 @@ export function Cashier() {
     const qty = manualForm.type === 'Jasa' ? 1 : parseInt(manualForm.qty)
     if (!price || price <= 0) return setManualError('Harga harus lebih dari 0.')
     if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.')
-    setCart(prev => [...prev, { id: crypto.randomUUID(), name: manualForm.name.trim(), type: 'MANUAL', price, qty }])
+    updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: manualForm.name.trim(), type: 'MANUAL', price, qty }] })
     setManualForm({ name: '', type: 'Jasa', price: '', qty: '1' })
     setManualOpen(false)
   }
 
   async function completeTransaction() {
-    if (cart.length === 0) return setTxError('Keranjang masih kosong.')
-    if (paymentMethod === 'CASH' && paidAmount < total) return setTxError('Uang yang dibayarkan kurang dari total belanja.')
-    setTxError(''); setProcessing(true)
+    if (cart.length === 0) return updateSession({ txError: 'Keranjang masih kosong.' })
+    if (paymentMethod === 'CASH' && paidAmount < total) return updateSession({ txError: 'Uang yang dibayarkan kurang dari total belanja.' })
+    updateSession({ txError: '' }); setProcessing(true)
     const trxNumber = generateTransactionNumber()
     const paid = paymentMethod === 'CASH' ? paidAmount : total
     const items = cart.map(i => ({
@@ -187,7 +249,7 @@ export function Cashier() {
       p_created_by: user?.id ?? null,
       p_items: items,
     })
-    
+
     if (!error && txDate !== new Date().toISOString().split('T')[0]) {
       const targetTime = txDate + 'T12:00:00Z'
       const { data: trxData } = await supabase.from('transactions').select('id').eq('transaction_number', trxNumber).single()
@@ -203,20 +265,19 @@ export function Cashier() {
     setProcessing(false)
     if (error) {
       const msg = error.message.includes('Stok tidak mencukupi') ? error.message : `Transaksi gagal: ${error.message}`
-      return setTxError(msg)
+      return updateSession({ txError: msg })
     }
     qc.invalidateQueries({ queryKey: ['cashier-products'] })
     qc.invalidateQueries({ queryKey: ['transactions'] })
     const mechName = mechanics.find(m => m.id === selectedMechanicId)?.name ?? '-'
-    setCompleted({ transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName, motor_type: motorType })
+    updateSession({
+      completed: { transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName, motor_type: motorType }
+    })
   }
 
-  function resetTransaction() {
-    setCart([]); setDiscount(0); setPaidAmount(0); setPaymentMethod('CASH')
-    setCompleted(null); setTxError(''); setSelectedMechanicId(''); setMotorType('')
-    setTxDate(new Date().toISOString().split('T')[0])
-    setShowWaInput(false)
-    setWaCustomerPhone('')
+  function resetSession() {
+    const fresh = newSession(sessions.indexOf(activeSession) + 1)
+    setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...fresh, id: s.id, label: s.label } : s))
   }
 
   function printReceipt() {
@@ -226,23 +287,6 @@ export function Cashier() {
     if (!win) return
     win.document.write(`<html><head><title>Struk - ${SHOP_NAME}</title>
     <style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:16px;width:320px;color:black;background:white}</style>
-    <style>
-      * { margin:0; padding:0; box-sizing:border-box; }
-      body { font-family: 'Courier New', monospace; font-size: 12px; background: #fff; color: #000; max-width: 320px; margin: 0 auto; padding: 16px; }
-      .center { text-align: center; }
-      .right { text-align: right; }
-      .bold { font-weight: bold; }
-      .small { font-size: 10px; }
-      .separator { border: none; border-top: 1px dashed #000; margin: 8px 0; }
-      .separator-solid { border: none; border-top: 2px solid #000; margin: 8px 0; }
-      .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; margin-bottom: 2px; }
-      .row-item-name { flex: 1; }
-      .row-item-price { white-space: nowrap; }
-      .logo { width: 140px; height: auto; object-fit: contain; margin: 0 auto 6px; display: block; }
-      .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin: 4px 0; }
-      .badge { display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: 9px; border-radius: 2px; margin-left: 4px; }
-      .footer-msg { margin-top: 12px; font-size: 11px; }
-    </style>
     </head><body>
     <div class="no-print" style="text-align:center;margin-bottom:16px;padding:12px;background:#f3f4f6;font-family:sans-serif;border-radius:8px;">
       <button onclick="window.close()" style="padding:10px 22px;background:#fff;border:1px solid #ccc;border-radius:6px;font-weight:bold;margin-right:10px;cursor:pointer;font-size:13px;">✕ Kembali</button>
@@ -253,65 +297,58 @@ export function Cashier() {
     setTimeout(() => win.print(), 400)
   }
 
-  if (completed) {
+  // --- Render completed view (inside cart panel) ---
+  function renderCompleted(comp: CompletedTransaction) {
     const now = new Date()
     const dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-
     return (
-      <div className="max-w-md mx-auto space-y-5">
-        <div className="bg-white border rounded-xl shadow-sm p-8 text-center">
-          <CheckCircle2 className="h-14 w-14 text-green-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900">Transaksi Berhasil!</h2>
-          <p className="text-sm text-gray-500 mt-1">{completed.transaction_number}</p>
-          <div className="mt-4 bg-gray-50 rounded-lg p-4 text-left space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-bold text-gray-900">{formatRupiah(completed.total)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Pembayaran</span><span className="font-medium">{completed.payment_method}</span></div>
-            {completed.payment_method === 'CASH' && <div className="flex justify-between"><span className="text-gray-500">Kembalian</span><span className="font-bold text-green-600">{formatRupiah(completed.change_amount)}</span></div>}
-            {completed.motor_type && <div className="flex justify-between"><span className="text-gray-500">Jenis Motor</span><span className="font-medium">{completed.motor_type}</span></div>}
-            {completed.mechanic_name !== '-' && <div className="flex justify-between"><span className="text-gray-500">Mekanik</span><span className="font-medium">{completed.mechanic_name}</span></div>}
-          </div>
-          <div className="flex gap-2 mt-6 flex-wrap">
-            <button onClick={printReceipt} className="flex-1 flex items-center justify-center gap-2 border rounded-lg py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-              <Printer className="h-4 w-4" /> Cetak Struk
-            </button>
-            <button
-              onClick={() => downloadPDF('receipt-pdf', `Struk-${completed.transaction_number}`)}
-              className="flex-1 flex items-center justify-center gap-2 bg-gray-900 text-white border rounded-lg py-2.5 text-sm font-medium hover:bg-gray-800"
-            >
-              <Download className="h-4 w-4" /> Download PDF
-            </button>
-          </div>
-          {showWaInput ? (
-            <div className="w-full mt-2 bg-gray-50 border rounded-lg p-3 space-y-2">
-              <label className="block text-xs font-medium text-gray-700">Nomor WA Customer</label>
-              <input type="text" placeholder="Contoh: 08123456789" value={waCustomerPhone} onChange={e => setWaCustomerPhone(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" autoFocus />
-              <div className="flex gap-2">
-                <button onClick={() => setShowWaInput(false)} className="flex-1 bg-white border border-gray-300 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-100">Batal</button>
-                <button onClick={async () => {
-                  if (!waCustomerPhone.trim()) return alert('Masukkan nomor WA terlebih dahulu!')
-                  await downloadPDF('receipt-pdf', `Struk-${completed.transaction_number}`)
-                  shareViaWhatsApp(waCustomerPhone, `Halo! Berikut struk transaksi ${completed.transaction_number} dari Rakyat Sinting Matic Shop 🏍️\nTotal: ${formatRupiah(completed.total)}\nMetode: ${completed.payment_method}${completed.mechanic_name !== '-' ? `\nMekanik: ${completed.mechanic_name}` : ''}\n\nTerima kasih sudah mempercayakan kendaraan Anda kepada kami! 🙏`)
-                  setShowWaInput(false)
-                }} className="flex-1 bg-green-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-700">Kirim WA</button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowWaInput(true)}
-              className="w-full mt-2 flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700"
-            >
-              <MessageCircle className="h-4 w-4" /> Kirim via WhatsApp
-            </button>
-          )}
-          <button onClick={resetTransaction} className="w-full mt-2 bg-primary text-white rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90">
-            Transaksi Baru
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        <div className="text-center">
+          <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-2" />
+          <h3 className="font-bold text-gray-900">Transaksi Berhasil!</h3>
+          <p className="text-xs text-gray-500 mt-0.5">{comp.transaction_number}</p>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1.5">
+          <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-bold">{formatRupiah(comp.total)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Pembayaran</span><span>{comp.payment_method}</span></div>
+          {comp.payment_method === 'CASH' && <div className="flex justify-between"><span className="text-gray-500">Kembalian</span><span className="font-bold text-green-600">{formatRupiah(comp.change_amount)}</span></div>}
+          {comp.motor_type && <div className="flex justify-between"><span className="text-gray-500">Motor</span><span>{comp.motor_type}</span></div>}
+          {comp.mechanic_name !== '-' && <div className="flex justify-between"><span className="text-gray-500">Mekanik</span><span>{comp.mechanic_name}</span></div>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={printReceipt} className="flex-1 flex items-center justify-center gap-1.5 border rounded-lg py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+            <Printer className="h-3.5 w-3.5" /> Cetak
+          </button>
+          <button onClick={() => downloadPDF('receipt-pdf', `Struk-${comp.transaction_number}`)} className="flex-1 flex items-center justify-center gap-1.5 bg-gray-900 text-white border rounded-lg py-2 text-xs font-medium hover:bg-gray-800">
+            <Download className="h-3.5 w-3.5" /> PDF
           </button>
         </div>
+        {showWaInput ? (
+          <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
+            <label className="block text-xs font-medium text-gray-700">Nomor WA Customer</label>
+            <input type="text" placeholder="Contoh: 08123456789" value={waCustomerPhone} onChange={e => updateSession({ waCustomerPhone: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" autoFocus />
+            <div className="flex gap-2">
+              <button onClick={() => updateSession({ showWaInput: false })} className="flex-1 bg-white border border-gray-300 text-gray-700 rounded-lg py-2 text-xs font-medium hover:bg-gray-100">Batal</button>
+              <button onClick={async () => {
+                if (!waCustomerPhone.trim()) return alert('Masukkan nomor WA terlebih dahulu!')
+                await downloadPDF('receipt-pdf', `Struk-${comp.transaction_number}`)
+                shareViaWhatsApp(waCustomerPhone, `Halo! Berikut struk transaksi ${comp.transaction_number} dari Rakyat Sinting Matic Shop 🏍️\nTotal: ${formatRupiah(comp.total)}\nMetode: ${comp.payment_method}${comp.mechanic_name !== '-' ? `\nMekanik: ${comp.mechanic_name}` : ''}\n\nTerima kasih sudah mempercayakan kendaraan Anda kepada kami! 🙏`)
+                updateSession({ showWaInput: false })
+              }} className="flex-1 bg-green-600 text-white rounded-lg py-2 text-xs font-medium hover:bg-green-700">Kirim WA</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => updateSession({ showWaInput: true })} className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700">
+            <MessageCircle className="h-4 w-4" /> Kirim via WhatsApp
+          </button>
+        )}
+        <button onClick={resetSession} className="w-full bg-primary text-white rounded-lg py-2.5 text-sm font-bold hover:bg-primary/90">
+          Transaksi Baru (Tab Ini)
+        </button>
 
-        {/* Hidden receipt for print */}
+        {/* Hidden receipt */}
         <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
-          {/* Header */}
           <div style={{textAlign:'center'}}>
             <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
             <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
@@ -319,18 +356,14 @@ export function Cashier() {
             <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>
           </div>
           <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-
-          {/* Transaction Info */}
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{completed.transaction_number}</span></div>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{comp.transaction_number}</span></div>
           <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{dateStr}</span></div>
           <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{timeStr}</span></div>
-          {completed.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{completed.motor_type}</span></div>}
-          {completed.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{completed.mechanic_name}</span></div>}
+          {comp.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{comp.motor_type}</span></div>}
+          {comp.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{comp.mechanic_name}</span></div>}
           <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-
-          {/* Items */}
           <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
-          {completed.items.map(i => (
+          {comp.items.map(i => (
             <div key={i.id} style={{marginBottom:'5px'}}>
               <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.name}</div>
               <div style={{display:'flex', justifyContent:'space-between'}}>
@@ -340,25 +373,19 @@ export function Cashier() {
             </div>
           ))}
           <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-
-          {/* Totals */}
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(completed.subtotal)}</span></div>
-          {completed.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(completed.discount)}</span></div>}
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(comp.subtotal)}</span></div>
+          {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(comp.discount)}</span></div>}
           <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(completed.total)}</span></div>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(comp.total)}</span></div>
           <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-
-          {/* Payment */}
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{completed.payment_method}</span></div>
-          {completed.payment_method === 'CASH' && (
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
+          {comp.payment_method === 'CASH' && (
             <div style={{width:'100%'}}>
-              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(completed.total + completed.change_amount)}</span></div>
-              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(completed.change_amount)}</span></div>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
             </div>
           )}
           <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-
-          {/* Footer */}
           <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
             <div>Terima kasih telah mempercayakan</div>
             <div>kendaraan Anda kepada kami!</div>
@@ -440,127 +467,153 @@ export function Cashier() {
 
       {/* Right: Cart + Payment */}
       <div className="bg-white border rounded-xl shadow-sm flex flex-col h-fit md:h-[calc(100vh-100px)] sticky top-4 w-full md:w-80 xl:w-96 flex-shrink-0">
-        <div className="flex items-center justify-between px-4 py-3.5 border-b">
-          <div className="flex items-center gap-2 font-semibold text-gray-900">
-            <ShoppingCart className="h-4 w-4" /> Keranjang
-          </div>
-          {cart.length > 0 && <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-[200px] md:min-h-0">
-          {cart.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">Keranjang kosong</div>
-          ) : cart.map(item => (
-            <div key={item.id} className="border rounded-lg p-2.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-medium text-gray-900 truncate">{item.name}</span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
-                      item.type === 'PRODUCT' ? 'bg-primary/10 text-primary' :
-                      item.type === 'SERVICE' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
-                    }`}>{item.type}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">{formatRupiah(item.price)}</p>
-                </div>
-                <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-1">
-                  <button onClick={() => changeQty(item.id, -1)} className="w-6 h-6 rounded border text-xs flex items-center justify-center hover:bg-gray-100">−</button>
-                  <span className="w-6 text-center text-sm font-medium">{item.qty}</span>
-                  <button onClick={() => changeQty(item.id, 1)} className="w-6 h-6 rounded border text-xs flex items-center justify-center hover:bg-gray-100">+</button>
-                </div>
-                <span className="text-sm font-semibold text-gray-900">{formatRupiah(item.price * item.qty)}</span>
-              </div>
+        {/* Session Tabs */}
+        <div className="flex items-center gap-1 px-2 pt-2 border-b overflow-x-auto">
+          {sessions.map(s => (
+            <div
+              key={s.id}
+              onClick={() => setActiveSessionId(s.id)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-t-lg text-xs font-semibold cursor-pointer transition-colors flex-shrink-0 border-b-2 ${
+                s.id === activeSession.id
+                  ? 'bg-primary/10 text-primary border-primary'
+                  : 'text-gray-500 hover:bg-gray-50 border-transparent'
+              }`}
+            >
+              {s.completed ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <ShoppingCart className="h-3 w-3" />}
+              <span>{s.label}</span>
+              {s.cart.length > 0 && !s.completed && (
+                <span className="bg-primary text-white text-[10px] font-bold px-1 rounded-full">{s.cart.reduce((sum, i) => sum + i.qty, 0)}</span>
+              )}
+              <button
+                onClick={e => { e.stopPropagation(); removeSession(s.id) }}
+                className="ml-0.5 text-gray-300 hover:text-red-400"
+              >
+                <X className="h-3 w-3" />
+              </button>
             </div>
           ))}
-        </div>
-
-        <div className="px-4 py-3 border-t space-y-2">
-          {/* Date input */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Tanggal</span>
-            <input
-              type="date"
-              value={txDate}
-              onChange={e => setTxDate(e.target.value)}
-              className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]"
-            />
-          </div>
-
-          {/* Motor input */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Jenis Motor</span>
-            <input
-              type="text"
-              placeholder="Vario 125, Beat, dll..."
-              value={motorType}
-              onChange={e => setMotorType(e.target.value)}
-              className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]"
-            />
-          </div>
-
-          {/* Mechanic selector */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Mekanik</span>
-            <select
-              value={selectedMechanicId}
-              onChange={e => setSelectedMechanicId(e.target.value)}
-              className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]"
+          {sessions.length < 5 && (
+            <button
+              onClick={addSession}
+              className="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg flex-shrink-0"
+              title="Tambah antrian baru"
             >
-              <option value="">— Pilih Mekanik —</option>
-              {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </div>
-
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Subtotal</span><span>{formatRupiah(subtotal)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Diskon (Rp)</span>
-            <input type="text" value={discount ? formatCurrencyInput(discount) : ""} placeholder="0"
-              onChange={e => setDiscount(parseFloat(parseCurrencyInput(e.target.value)) || 0)}
-              className="w-28 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
-          </div>
-          <div className="flex justify-between font-bold text-base border-t pt-2">
-            <span>TOTAL</span><span className="text-primary">{formatRupiah(total)}</span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-1.5 pt-1">
-            {(['CASH', 'QRIS', 'TRANSFER'] as const).map(m => (
-              <button key={m} onClick={() => { setPaymentMethod(m); if (m !== 'CASH') setPaidAmount(total) }}
-                className={`py-2 rounded-lg text-xs font-bold border transition-colors ${paymentMethod === m ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                {m}
-              </button>
-            ))}
-          </div>
-
-          {paymentMethod === 'CASH' && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Uang Dibayar</span>
-                <input type="text" value={paidAmount ? formatCurrencyInput(paidAmount) : ""}
-                  onChange={e => setPaidAmount(parseFloat(parseCurrencyInput(e.target.value)) || 0)}
-                  className="w-32 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Kembalian</span>
-                <span className={`font-semibold ${change < 0 ? 'text-red-500' : 'text-green-600'}`}>{formatRupiah(change)}</span>
-              </div>
-            </div>
+              <Plus className="h-3.5 w-3.5" /> Baru
+            </button>
           )}
-
-          {txError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">{txError}</div>}
-
-          <button onClick={completeTransaction} disabled={processing || cart.length === 0}
-            className="w-full bg-primary text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed mt-1">
-            <CheckCircle2 className="h-4 w-4" />
-            {processing ? 'Memproses...' : 'SELESAIKAN TRANSAKSI'}
-          </button>
         </div>
+
+        {/* Cart header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
+            <ShoppingCart className="h-4 w-4" /> {activeSession.label}
+          </div>
+          {cart.length > 0 && !completed && <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
+        </div>
+
+        {completed ? renderCompleted(completed) : (
+          <>
+            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-[200px] md:min-h-0">
+              {cart.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">Keranjang kosong</div>
+              ) : cart.map(item => (
+                <div key={item.id} className="border rounded-lg p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-medium text-gray-900 truncate">{item.name}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                          item.type === 'PRODUCT' ? 'bg-primary/10 text-primary' :
+                          item.type === 'SERVICE' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
+                        }`}>{item.type}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{formatRupiah(item.price)}</p>
+                    </div>
+                    <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => changeQty(item.id, -1)} className="w-6 h-6 rounded border text-xs flex items-center justify-center hover:bg-gray-100">−</button>
+                      <span className="w-6 text-center text-sm font-medium">{item.qty}</span>
+                      <button onClick={() => changeQty(item.id, 1)} className="w-6 h-6 rounded border text-xs flex items-center justify-center hover:bg-gray-100">+</button>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900">{formatRupiah(item.price * item.qty)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-4 py-3 border-t space-y-2">
+              {/* Date input */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Tanggal</span>
+                <input type="date" value={txDate} onChange={e => updateSession({ txDate: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]" />
+              </div>
+
+              {/* Motor input */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Jenis Motor</span>
+                <input type="text" placeholder="Vario 125, Beat, dll..." value={motorType} onChange={e => updateSession({ motorType: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]" />
+              </div>
+
+              {/* Mechanic selector */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Mekanik</span>
+                <select value={selectedMechanicId} onChange={e => updateSession({ selectedMechanicId: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]">
+                  <option value="">— Pilih Mekanik —</option>
+                  {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Subtotal</span><span>{formatRupiah(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Diskon (Rp)</span>
+                <input type="text" value={discount ? formatCurrencyInput(discount) : ""} placeholder="0"
+                  onChange={e => updateSession({ discount: parseFloat(parseCurrencyInput(e.target.value)) || 0 })}
+                  className="w-28 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
+              </div>
+              <div className="flex justify-between font-bold text-base border-t pt-2">
+                <span>TOTAL</span><span className="text-primary">{formatRupiah(total)}</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                {(['CASH', 'QRIS', 'TRANSFER'] as const).map(m => (
+                  <button key={m} onClick={() => { updateSession({ paymentMethod: m, paidAmount: m !== 'CASH' ? total : paidAmount }) }}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-colors ${paymentMethod === m ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              {paymentMethod === 'CASH' && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Uang Dibayar</span>
+                    <input type="text" value={paidAmount ? formatCurrencyInput(paidAmount) : ""}
+                      onChange={e => updateSession({ paidAmount: parseFloat(parseCurrencyInput(e.target.value)) || 0 })}
+                      className="w-32 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Kembalian</span>
+                    <span className={`font-semibold ${change < 0 ? 'text-red-500' : 'text-green-600'}`}>{formatRupiah(change)}</span>
+                  </div>
+                </div>
+              )}
+
+              {txError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">{txError}</div>}
+
+              <button onClick={completeTransaction} disabled={processing || cart.length === 0}
+                className="w-full bg-primary text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed mt-1">
+                <CheckCircle2 className="h-4 w-4" />
+                {processing ? 'Memproses...' : 'SELESAIKAN TRANSAKSI'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Manual Input Modal */}
