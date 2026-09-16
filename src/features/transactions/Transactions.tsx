@@ -203,7 +203,7 @@ export function Transactions() {
                   doc.open()
                   doc.write(`<html><head><title>Struk - ${detailTrx.transaction_number}</title>
                   <style>
-                    @page { margin: 0; }
+                    @page { size: 58mm auto; margin: 0; }
                     body { font-family: monospace; font-size: 12px; margin: 0; padding: 4px; width: 58mm; color: black; background: white; }
                   </style>
                   </head><body>
