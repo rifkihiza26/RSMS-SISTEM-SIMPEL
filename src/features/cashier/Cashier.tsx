@@ -329,9 +329,10 @@ export function Cashier() {
     iframe.style.position = 'fixed'
     iframe.style.right = '0'
     iframe.style.bottom = '0'
-    iframe.style.width = '0'
+    iframe.style.width = '58mm'
     iframe.style.height = '0'
     iframe.style.border = 'none'
+    iframe.style.visibility = 'hidden'
     document.body.appendChild(iframe)
 
     const doc = iframe.contentWindow?.document
@@ -348,14 +349,13 @@ export function Cashier() {
     </body></html>`)
     doc.close()
 
-    // Wait for images to load before printing
-    iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
       setTimeout(() => {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-        setTimeout(() => document.body.removeChild(iframe), 1000)
-      }, 500)
-    }
+        if (document.body.contains(iframe)) document.body.removeChild(iframe)
+      }, 2000)
+    }, 600)
   }
 
   // --- Render completed view (inside cart panel) ---

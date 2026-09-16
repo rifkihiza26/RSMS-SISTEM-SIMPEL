@@ -192,9 +192,10 @@ export function Transactions() {
                   iframe.style.position = 'fixed'
                   iframe.style.right = '0'
                   iframe.style.bottom = '0'
-                  iframe.style.width = '0'
+                  iframe.style.width = '58mm'
                   iframe.style.height = '0'
                   iframe.style.border = 'none'
+                  iframe.style.visibility = 'hidden'
                   document.body.appendChild(iframe)
 
                   const doc = iframe.contentWindow?.document
@@ -211,13 +212,13 @@ export function Transactions() {
                   </body></html>`)
                   doc.close()
 
-                  iframe.onload = () => {
+                  setTimeout(() => {
+                    iframe.contentWindow?.focus()
+                    iframe.contentWindow?.print()
                     setTimeout(() => {
-                      iframe.contentWindow?.focus()
-                      iframe.contentWindow?.print()
-                      setTimeout(() => document.body.removeChild(iframe), 1000)
-                    }, 500)
-                  }
+                      if (document.body.contains(iframe)) document.body.removeChild(iframe)
+                    }, 2000)
+                  }, 600)
 
                 }} className="flex-1 bg-primary text-white hover:bg-primary/90 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Print Struk</button>
                 <button onClick={() => downloadPDF('reprint-receipt', 'Invoice-' + detailTrx.transaction_number)} className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2">⬇️ PDF</button>
