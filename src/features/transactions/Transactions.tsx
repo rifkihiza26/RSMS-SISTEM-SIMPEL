@@ -190,7 +190,7 @@ export function Transactions() {
                   const win = window.open('', '_blank')
                   if (!win) return
                   win.document.write('<html><head><title>Struk - ' + detailTrx.transaction_number + '</title>')
-                  win.document.write('<style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:16px;width:320px;color:black;background:white}.center{text-align:center}.row{display:flex;justify-content:space-between;margin-bottom:3px}.bold{font-weight:bold}.small{font-size:11px}.separator{border-top:1px dashed #000;margin:6px 0;border-bottom:none}.separator-solid{border-top:1px solid #000;margin:6px 0;border-bottom:none}.logo{width:140px;height:auto;object-fit:contain;margin:0 auto 6px;display:block}.row-item-name{margin-bottom:2px}</style>')
+                  win.document.write('<style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:4px;width:58mm;color:black;background:white}.center{text-align:center}.row{display:flex;justify-content:space-between;margin-bottom:3px}.bold{font-weight:bold}.small{font-size:11px}.separator{border-top:1px dashed #000;margin:6px 0;border-bottom:none}.separator-solid{border-top:1px solid #000;margin:6px 0;border-bottom:none}.logo{width:140px;height:auto;object-fit:contain;margin:0 auto 6px;display:block}.row-item-name{margin-bottom:2px}</style>')
                   win.document.write('</head><body>')
                   win.document.write('<div class="no-print" style="text-align:center; margin-bottom: 20px; padding: 15px; background: #f3f4f6; font-family: sans-serif;"><button onclick="window.close()" style="padding: 10px 20px; background: #fff; border: 1px solid #ccc; border-radius: 6px; font-weight: bold; margin-right: 10px; cursor: pointer;">Kembali</button><button onclick="window.print()" style="padding: 10px 20px; background: #0ea5e9; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Print Ulang</button></div>')
                   win.document.write(el.outerHTML)
@@ -202,7 +202,7 @@ export function Transactions() {
               </div>
 
                             {/* Hidden Receipt Format for printing */}
-              <div id="reprint-receipt" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
+              <div id="reprint-receipt" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
                 {/* Header */}
                 <div style={{textAlign:'center'}}>
                   <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />

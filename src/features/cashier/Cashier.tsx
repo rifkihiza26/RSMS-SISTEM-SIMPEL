@@ -326,7 +326,7 @@ export function Cashier() {
     const win = window.open('', '_blank')
     if (!win) return
     win.document.write(`<html><head><title>Struk - ${SHOP_NAME}</title>
-    <style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:16px;width:320px;color:black;background:white}</style>
+    <style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:4px;width:58mm;color:black;background:white}</style>
     </head><body>
     <div class="no-print" style="text-align:center;margin-bottom:16px;padding:12px;background:#f3f4f6;font-family:sans-serif;border-radius:8px;">
       <button onclick="window.close()" style="padding:10px 22px;background:#fff;border:1px solid #ccc;border-radius:6px;font-weight:bold;margin-right:10px;cursor:pointer;font-size:13px;">✕ Kembali</button>
@@ -388,7 +388,7 @@ export function Cashier() {
         </button>
 
         {/* Hidden receipt */}
-        <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'16px', maxWidth:'320px', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
+        <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
           <div style={{textAlign:'center'}}>
             <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
             <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
