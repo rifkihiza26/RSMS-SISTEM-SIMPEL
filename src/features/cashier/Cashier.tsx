@@ -323,18 +323,39 @@ export function Cashier() {
   function printReceipt() {
     const el = receiptRef.current
     if (!el) return
-    const win = window.open('', '_blank')
-    if (!win) return
-    win.document.write(`<html><head><title>Struk - ${SHOP_NAME}</title>
-    <style>@media print { .no-print { display: none !important; } } body{font-family:monospace;font-size:12px;margin:0;padding:4px;width:58mm;color:black;background:white}</style>
+    
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow?.document
+    if (!doc) return
+
+    doc.open()
+    doc.write(`<html><head><title>Struk</title>
+    <style>
+      @page { margin: 0; }
+      body { font-family: monospace; font-size: 12px; margin: 0; padding: 4px; width: 58mm; color: black; background: white; }
+    </style>
     </head><body>
-    <div class="no-print" style="text-align:center;margin-bottom:16px;padding:12px;background:#f3f4f6;font-family:sans-serif;border-radius:8px;">
-      <button onclick="window.close()" style="padding:10px 22px;background:#fff;border:1px solid #ccc;border-radius:6px;font-weight:bold;margin-right:10px;cursor:pointer;font-size:13px;">✕ Kembali</button>
-      <button onclick="window.print()" style="padding:10px 22px;background:#0ea5e9;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;">🖨️ Print Ulang</button>
-    </div>
-    ${el.innerHTML}</body></html>`)
-    win.document.close()
-    setTimeout(() => win.print(), 400)
+    ${el.innerHTML}
+    </body></html>`)
+    doc.close()
+
+    // Wait for images to load before printing
+    iframe.onload = () => {
+      setTimeout(() => {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+        setTimeout(() => document.body.removeChild(iframe), 1000)
+      }, 500)
+    }
   }
 
   // --- Render completed view (inside cart panel) ---
