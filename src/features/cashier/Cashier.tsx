@@ -1,330 +1,304 @@
-import { useState, useRef, useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { useState, useEffect, useRef } from 'react'
+import { Search, ShoppingCart, Plus, Minus, X, CheckCircle2, Calculator, Wrench, FileText, Printer, Save, Trash2 } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { formatRupiah, generateTransactionNumber, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils'
-import { downloadPDF, shareViaWhatsApp } from '@/lib/pdf'
-import { Search, Plus, Trash2, X, CheckCircle2, Printer, ShoppingCart, Package, Wrench, Download, MessageCircle } from 'lucide-react'
 
-const SHOP_NAME = 'RAKYAT SINTING MATIC SHOP'
-const SHOP_ADDRESS = 'Jln. Pejaten Raya RT.01/RW.07 No. 3, Kel. Pejaten Barat, Kec. Pasar Minggu, Jakarta Selatan 12510'
-const SHOP_PHONE = '0813-8760-7676'
+// ... (Types & Interfaces) ...
+type ItemType = 'PRODUCT' | 'SERVICE'
 
-type CartItem = {
-  id: string
-  name: string
-  type: 'PRODUCT' | 'SERVICE' | 'MANUAL'
-  price: number
-  qty: number
-  product_id?: string
-  service_id?: string
-  sku?: string
-  max_stock?: number
-  is_service: boolean
+interface Product {
+  id: string; name: string; sku: string; price: number; stock: number; category: string;
 }
-
-type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null; product_categories?: { name: string } | { name: string }[] | null }
-type Service = { id: string; service_code: string; name: string; selling_price: number }
-type Mechanic = { id: string; name: string }
-
-type CompletedTransaction = {
-  transaction_number: string
-  total: number
-  subtotal: number
-  discount: number
-  payment_method: string
-  change_amount: number
-  items: CartItem[]
-  mechanic_name: string
-  motor_type: string
+interface Service {
+  id: string; name: string; code: string; price: number; category: string;
 }
-
-// --- Per-session state ---
-type CartSession = {
-  id: string
-  label: string
-  cart: CartItem[]
-  discount: number
-  paymentMethod: 'CASH' | 'QRIS' | 'TRANSFER'
-  paidAmount: number
-  selectedMechanicId: string
-  motorType: string
-  txDate: string
-  txError: string
-  completed: CompletedTransaction | null
-  showWaInput: boolean
-  waCustomerPhone: string
+interface CartItem {
+  id: string; type: ItemType; product_id?: string; service_id?: string;
+  name: string; sku?: string; price: number; qty: number; is_service: boolean;
 }
-
-function newSession(index: number): CartSession {
-  return {
-    id: crypto.randomUUID(),
-    label: `Antrian ${index}`,
-    cart: [],
-    discount: 0,
-    paymentMethod: 'CASH',
-    paidAmount: 0,
-    selectedMechanicId: '',
-    motorType: '',
-    txDate: new Date().toISOString().split('T')[0],
-    txError: '',
-    completed: null,
-    showWaInput: false,
-    waCustomerPhone: '',
-  }
+interface Mechanic {
+  id: string; name: string; status: 'ACTIVE' | 'INACTIVE';
 }
-
 export function Cashier() {
   const { user } = useAuth()
-  const qc = useQueryClient()
-
-  // Global UI state
+  
+  // Data States
+  const [products, setProducts] = useState<Product[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [mechanics, setMechanics] = useState<Mechanic[]>([])
+  // UI States
   const [search, setSearch] = useState('')
-  const [tab, setTab] = useState<'PRODUCT' | 'SERVICE'>('PRODUCT')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [manualOpen, setManualOpen] = useState(false)
-  const [manualForm, setManualForm] = useState({ name: '', type: 'Jasa', price: '', qty: '1' })
-  const [manualError, setManualError] = useState('')
-  const [stockWarning, setStockWarning] = useState('')
+  const [activeTab, setActiveTab] = useState('PRODUCTS')
+  const [loading, setLoading] = useState(true)
+
+  // Session State (Multi-Tab Open Bills)
+  interface Session {
+    id: string;
+    trxNumber: string;
+    cart: CartItem[];
+    mechanicId: string;
+    motorType: string;
+    hasUnsavedChanges: boolean;
+    isSavedInDb: boolean;
+  }
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string>('')
+
+  // Checkout Modal State
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'CASH'|'TRANSFER'|'QRIS'>('CASH')
+  const [paidAmount, setPaidAmount] = useState(0)
+  const [discount, setDiscount] = useState(0)
   const [processing, setProcessing] = useState(false)
+  const [txError, setTxError] = useState('')
+
+  // Completed State
+  const [completedTx, setCompletedTx] = useState<any>(null)
   const receiptRef = useRef<HTMLDivElement>(null)
 
-  // Multi-session state - persisted to localStorage
-  const STORAGE_KEY = 'rsms_cashier_sessions'
-  const ACTIVE_KEY = 'rsms_cashier_active'
-
-  const [sessions, setSessions] = useState<CartSession[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved) as CartSession[]
-        // Filter out completed sessions on reload
-        const pending = parsed.filter(s => !s.completed)
-        if (pending.length > 0) return pending
-      }
-    } catch {}
-    const first = newSession(1)
-    return [first]
-  })
-
-  const [activeSessionId, setActiveSessionId] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      const activeId = localStorage.getItem(ACTIVE_KEY)
-      if (saved && activeId) {
-        const parsed = JSON.parse(saved) as CartSession[]
-        const pending = parsed.filter(s => !s.completed)
-        if (pending.find(s => s.id === activeId)) return activeId
-        if (pending.length > 0) return pending[0].id
-      }
-    } catch {}
-    return ''
-  })
-
-  // Auto-save sessions to localStorage whenever they change
   useEffect(() => {
-    try {
-      // Only persist non-completed sessions
-      const toSave = sessions.map(s => s.completed ? { ...s, completed: null } : s)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
-      localStorage.setItem(ACTIVE_KEY, activeSessionId)
-    } catch {}
-  }, [sessions, activeSessionId])
+    fetchData()
+  }, [])
 
-  // Init: make sure activeSessionId matches first session
-  const activeSession = sessions.find(s => s.id === activeSessionId) ?? sessions[0]
-
-  function updateSession(patch: Partial<CartSession>) {
-    setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...s, ...patch } : s))
+  async function fetchData() {
+    setLoading(true)
+    const [prodRes, servRes, mechRes, billRes] = await Promise.all([
+      supabase.from('products').select('*').eq('status', 'ACTIVE'),
+      supabase.from('services').select('*').eq('status', 'ACTIVE'),
+      supabase.from('mechanics').select('*').eq('status', 'ACTIVE'),
+      supabase.from('transactions').select('*').eq('status', 'OPEN').order('created_at', { ascending: true })
+    ])
+    
+    if (prodRes.data) setProducts(prodRes.data)
+    if (servRes.data) setServices(servRes.data)
+    if (mechRes.data) setMechanics(mechRes.data)
+    
+    // Initialize sessions from Open Bills
+    if (billRes.data && billRes.data.length > 0) {
+      const loadedSessions: Session[] = billRes.data.map(bill => ({
+        id: bill.id,
+        trxNumber: bill.transaction_number,
+        cart: Array.isArray(bill.draft_cart) ? bill.draft_cart : [],
+        mechanicId: bill.mechanic_id || '',
+        motorType: bill.motor_type || '',
+        hasUnsavedChanges: false,
+        isSavedInDb: true
+      }))
+      setSessions(loadedSessions)
+      setActiveSessionId(loadedSessions[0].id)
+    } else {
+      createNewSession()
+    }
+    setLoading(false)
   }
 
-  const { data: products = [] } = useQuery({
-    queryKey: ['cashier-products'],
-    queryFn: async () => {
-      const { data } = await supabase.from('products').select('id,sku,name,selling_price,stock,brand,product_categories(name)').eq('status', 'ACTIVE').order('name')
-      return (data ?? []) as Product[]
+  function createNewSession() {
+    const id = crypto.randomUUID()
+    const now = new Date()
+    const trxNumber = 'TRX-' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '-' + Math.floor(Math.random() * 10000)
+    
+    const newSession: Session = {
+      id, trxNumber, cart: [], mechanicId: '', motorType: '', hasUnsavedChanges: true, isSavedInDb: false
     }
-  })
-
-  const { data: services = [] } = useQuery({
-    queryKey: ['cashier-services'],
-    queryFn: async () => {
-      const { data } = await supabase.from('services').select('id,service_code,name,selling_price').eq('active', true).order('name')
-      return (data ?? []) as Service[]
-    }
-  })
-
-  const { data: mechanics = [] } = useQuery({
-    queryKey: ['mechanics-active'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('mechanics').select('id,name').order('name')
-      if (error) console.error("Mechanics Error:", error)
-      return (data ?? []) as Mechanic[]
-    }
-  })
-
-  const productCategories = ['Semua', ...Array.from(new Set(products.map(p => ((Array.isArray(p.product_categories) ? p.product_categories[0]?.name : p.product_categories?.name) || '')).filter(Boolean)))]
-  const serviceCategories = ['Semua']
-
-  const filteredProducts = products.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()) || (p.brand ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchCategory = !categoryFilter || categoryFilter === 'Semua' || ((Array.isArray(p.product_categories) ? p.product_categories[0]?.name : p.product_categories?.name) === categoryFilter)
-    return matchSearch && matchCategory
-  })
-  const filteredServices = services.filter((s: any) => {
-    return s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
-  })
-
-  const { cart, discount, paymentMethod, paidAmount, selectedMechanicId, motorType, txDate, txError, completed, showWaInput, waCustomerPhone } = activeSession
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
-  const total = Math.max(0, subtotal - discount)
-  const change = paymentMethod === 'CASH' ? Math.max(0, paidAmount - total) : 0
-
-  // --- Session management ---
-  function addSession() {
-    if (sessions.length >= 5) return
-    const next = newSession(sessions.length + 1)
-    setSessions(prev => [...prev, next])
-    setActiveSessionId(next.id)
+    setSessions(prev => [...prev, newSession])
+    setActiveSessionId(id)
   }
 
-  function removeSession(id: string) {
-    if (sessions.length === 1) {
-      const fresh = newSession(1)
-      setSessions([fresh])
-      setActiveSessionId(fresh.id)
+  const activeSession = sessions.find(s => s.id === activeSessionId)
+
+  function updateActiveSession(updates: Partial<Session>) {
+    setSessions(prev => prev.map(s => {
+      if (s.id === activeSessionId) {
+        return { ...s, ...updates, hasUnsavedChanges: true }
+      }
+      return s
+    }))
+  }
+
+  // --- Cart Actions ---
+  function addToCart(item: any, type: ItemType) {
+    if (!activeSession) return
+    const existing = activeSession.cart.find(c => type === 'PRODUCT' ? c.product_id === item.id : c.service_id === item.id)
+    if (existing) {
+      if (type === 'PRODUCT') {
+        const prod = products.find(p => p.id === item.id)
+        if (prod && existing.qty >= prod.stock) {
+          alert('Stok tidak mencukupi!')
+          return
+        }
+      }
+      const newCart = activeSession.cart.map(c => c.id === existing.id ? { ...c, qty: c.qty + 1 } : c)
+      updateActiveSession({ cart: newCart })
+    } else {
+      if (type === 'PRODUCT' && item.stock < 1) {
+        alert('Stok habis!')
+        return
+      }
+      const newItem: CartItem = {
+        id: crypto.randomUUID(), type,
+        product_id: type === 'PRODUCT' ? item.id : undefined,
+        service_id: type === 'SERVICE' ? item.id : undefined,
+        name: item.name, sku: type === 'PRODUCT' ? item.sku : undefined,
+        price: item.price, qty: 1, is_service: type === 'SERVICE'
+      }
+      updateActiveSession({ cart: [...activeSession.cart, newItem] })
+    }
+  }
+
+  function updateQty(id: string, delta: number) {
+    if (!activeSession) return
+    const item = activeSession.cart.find(c => c.id === id)
+    if (!item) return
+    const newQty = item.qty + delta
+    if (newQty < 1) {
+      updateActiveSession({ cart: activeSession.cart.filter(c => c.id !== id) })
       return
     }
-    const idx = sessions.findIndex(s => s.id === id)
-    const newSessions = sessions.filter(s => s.id !== id)
-    setSessions(newSessions)
-    if (activeSessionId === id) {
-      setActiveSessionId(newSessions[Math.max(0, idx - 1)].id)
+    if (item.type === 'PRODUCT') {
+      const prod = products.find(p => p.id === item.product_id)
+      if (prod && newQty > prod.stock) {
+        alert('Stok tidak mencukupi!')
+        return
+      }
     }
+    updateActiveSession({ cart: activeSession.cart.map(c => c.id === id ? { ...c, qty: newQty } : c) })
   }
 
-  // --- Cart operations ---
-  function addProduct(p: Product) {
-    const newCart = [...cart]
-    const ex = newCart.find(i => i.product_id === p.id)
-    if (ex) {
-      if (ex.qty >= p.stock) { setStockWarning(`Stok ${p.name} tidak mencukupi. Tersedia: ${p.stock}`); setTimeout(() => setStockWarning(''), 3000); return }
-      updateSession({ cart: newCart.map(i => i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i) })
-    } else {
-      if (p.stock === 0) { setStockWarning(`Stok ${p.name} habis.`); setTimeout(() => setStockWarning(''), 3000); return }
-      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: p.name, type: 'PRODUCT', price: p.selling_price, qty: 1, product_id: p.id, sku: p.sku, max_stock: p.stock, is_service: false }] })
-    }
-  }
+  // --- Open Bill Sync Logic ---
+  async function saveOpenBill() {
+    if (!activeSession) return
+    if (activeSession.cart.length === 0) return alert('Keranjang kosong!')
+    
+    setProcessing(true)
+    const cartJson = activeSession.cart.map(i => ({
+      ...i, stock_tracked: i.type === 'PRODUCT'
+    }))
 
-  function addService(s: Service) {
-    const ex = cart.find(i => i.service_id === s.id)
-    if (ex) {
-      updateSession({ cart: cart.map(i => i.service_id === s.id ? { ...i, qty: i.qty + 1 } : i) })
-    } else {
-      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: s.name, type: 'SERVICE', price: s.selling_price, qty: 1, service_id: s.id, sku: s.service_code, is_service: true }] })
-    }
-  }
-
-  function changeQty(id: string, delta: number) {
-    updateSession({
-      cart: cart.map(i => {
-        if (i.id !== id) return i
-        const newQty = i.qty + delta
-        if (newQty < 1) return i
-        if (i.type === 'PRODUCT' && i.max_stock !== undefined && newQty > i.max_stock) {
-          setStockWarning(`Stok ${i.name} tidak mencukupi. Tersedia: ${i.max_stock}`)
-          setTimeout(() => setStockWarning(''), 3000)
-          return i
-        }
-        return { ...i, qty: newQty }
-      })
+    const { error } = await supabase.rpc('sync_open_bill', {
+      p_tx_id: activeSession.id,
+      p_tx_number: activeSession.trxNumber,
+      p_mechanic_id: activeSession.mechanicId || null,
+      p_motor_type: activeSession.motorType || '',
+      p_new_cart: cartJson,
+      p_created_by: user?.id
     })
+
+    setProcessing(false)
+    if (error) {
+      alert('Gagal menyimpan bon: ' + error.message)
+    } else {
+      setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...s, hasUnsavedChanges: false, isSavedInDb: true } : s))
+      // Refresh products to show deducted stock
+      const { data } = await supabase.from('products').select('*').eq('status', 'ACTIVE')
+      if (data) setProducts(data)
+      alert('Bon berhasil disimpan & stok dibooking!')
+    }
   }
 
-  function removeItem(id: string) { updateSession({ cart: cart.filter(i => i.id !== id) }) }
+  async function cancelOpenBill() {
+    if (!activeSession) return
+    if (!activeSession.isSavedInDb) {
+      // Just close tab
+      setSessions(prev => prev.filter(s => s.id !== activeSession.id))
+      if (sessions.length > 1) setActiveSessionId(sessions.find(s => s.id !== activeSession.id)?.id || '')
+      else createNewSession()
+      return
+    }
 
-  function addManual(e: React.FormEvent) {
-    e.preventDefault(); setManualError('')
-    if (!manualForm.name.trim()) return setManualError('Nama item wajib diisi.')
-    const price = parseFloat(manualForm.price)
-    const qty = manualForm.type === 'Jasa' ? 1 : parseInt(manualForm.qty)
-    if (!price || price <= 0) return setManualError('Harga harus lebih dari 0.')
-    if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.')
-    updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: manualForm.name.trim(), type: 'MANUAL', price, qty, is_service: manualForm.type === 'Jasa' }] })
-    setManualForm({ name: '', type: 'Jasa', price: '', qty: '1' })
-    setManualOpen(false)
+    if (!confirm('Batalkan bon ini? Stok akan dikembalikan.')) return
+
+    setProcessing(true)
+    const { error } = await supabase.rpc('cancel_open_bill', { p_tx_id: activeSession.id })
+    setProcessing(false)
+    
+    if (error) {
+      alert('Gagal membatalkan bon: ' + error.message)
+    } else {
+      setSessions(prev => prev.filter(s => s.id !== activeSession.id))
+      if (sessions.length > 1) setActiveSessionId(sessions.find(s => s.id !== activeSession.id)?.id || '')
+      else createNewSession()
+      // Refresh stock
+      const { data } = await supabase.from('products').select('*').eq('status', 'ACTIVE')
+      if (data) setProducts(data)
+    }
   }
 
-  async function completeTransaction() {
-    if (cart.length === 0) return updateSession({ txError: 'Keranjang masih kosong.' })
-    if (paymentMethod === 'CASH' && paidAmount < total) return updateSession({ txError: 'Uang yang dibayarkan kurang dari total belanja.' })
-    updateSession({ txError: '' }); setProcessing(true)
-    const trxNumber = generateTransactionNumber()
-    const paid = paymentMethod === 'CASH' ? paidAmount : total
-    const items = cart.map(i => ({
+  // --- Payment Logic ---
+  async function finalizePayment() {
+    if (!activeSession) return
+    if (activeSession.cart.length === 0) return setTxError('Keranjang kosong.')
+    const subtotal = activeSession.cart.reduce((sum, item) => sum + (item.price * item.qty), 0)
+    const total = subtotal - discount
+    if (paymentMethod === 'CASH' && paidAmount < total) return setTxError('Uang pembayaran kurang.')
+    
+    setProcessing(true)
+    setTxError('')
+
+    const cartJson = activeSession.cart.map(i => ({
       item_type: i.type,
-      product_id: i.product_id ?? null,
-      service_id: i.service_id ?? null,
+      product_id: i.product_id || null,
+      service_id: i.service_id || null,
       item_name: i.name,
-      sku: i.sku ?? null,
+      sku: i.sku || null,
       quantity: i.qty,
       unit_price: i.price,
       subtotal: i.price * i.qty,
       stock_tracked: i.type === 'PRODUCT',
-      is_service: i.is_service,
+      is_service: i.is_service
     }))
-    const { error } = await supabase.rpc('process_transaction', {
-      p_transaction_number: trxNumber,
+
+    // 1. MUST SYNC FIRST to ensure stock is accurately deducted for this ID
+    const { error: syncErr } = await supabase.rpc('sync_open_bill', {
+      p_tx_id: activeSession.id, p_tx_number: activeSession.trxNumber, p_mechanic_id: activeSession.mechanicId || null,
+      p_motor_type: activeSession.motorType || '', p_new_cart: cartJson, p_created_by: user?.id
+    })
+    
+    if (syncErr) {
+      setProcessing(false); return setTxError('Gagal sinkronisasi stok: ' + syncErr.message)
+    }
+
+    // 2. Process Payment
+    const mechanicName = mechanics.find(m => m.id === activeSession.mechanicId)?.name || ''
+    const notes = [mechanicName ? `Mekanik: ${mechanicName}` : '', activeSession.motorType ? `Motor: ${activeSession.motorType}` : ''].filter(Boolean).join(' | ')
+    
+    const finalPaid = paymentMethod === 'CASH' ? paidAmount : total
+    const { error: payErr } = await supabase.rpc('pay_open_bill', {
+      p_tx_id: activeSession.id,
       p_subtotal: subtotal,
       p_discount: discount,
       p_total: total,
       p_payment_method: paymentMethod,
-      p_paid_amount: paid,
-      p_change_amount: paymentMethod === 'CASH' ? paid - total : 0,
-      p_cash_session_id: null,
-      p_notes: [
-        selectedMechanicId ? `Mekanik: ${mechanics.find(m => m.id === selectedMechanicId)?.name ?? ''}` : '',
-        motorType ? `Motor: ${motorType}` : ''
-      ].filter(Boolean).join(' | ') || '',
-      p_created_by: user?.id ?? null,
-      p_items: items,
+      p_paid_amount: finalPaid,
+      p_change_amount: paymentMethod === 'CASH' ? finalPaid - total : 0,
+      p_notes: notes,
+      p_items: cartJson
     })
-
-    if (!error && txDate !== new Date().toISOString().split('T')[0]) {
-      const targetTime = txDate + 'T12:00:00Z'
-      const { data: trxData } = await supabase.from('transactions').select('id').eq('transaction_number', trxNumber).single()
-      if (trxData) {
-        await Promise.all([
-          supabase.from('transactions').update({ created_at: targetTime }).eq('id', trxData.id),
-          supabase.from('transaction_items').update({ created_at: targetTime }).eq('transaction_id', trxData.id),
-          supabase.from('incomes').update({ created_at: targetTime, date: txDate }).eq('transaction_id', trxData.id)
-        ])
-      }
-    }
 
     setProcessing(false)
-    if (error) {
-      const msg = error.message.includes('Stok tidak mencukupi') ? error.message : `Transaksi gagal: ${error.message}`
-      return updateSession({ txError: msg })
+    if (payErr) {
+      setTxError('Gagal menyelesaikan pembayaran: ' + payErr.message)
+    } else {
+      // SUCCESS!
+      setCompletedTx({
+        trxNumber: activeSession.trxNumber,
+        cart: activeSession.cart,
+        subtotal, discount, total, paymentMethod, paidAmount: finalPaid, changeAmount: paymentMethod === 'CASH' ? finalPaid - total : 0,
+        mechanicName, motorType: activeSession.motorType
+      })
+      setShowCheckout(false)
+      
+      // Remove from session
+      setSessions(prev => prev.filter(s => s.id !== activeSession.id))
+      // Refresh stock
+      const { data } = await supabase.from('products').select('*').eq('status', 'ACTIVE')
+      if (data) setProducts(data)
     }
-    qc.invalidateQueries({ queryKey: ['cashier-products'] })
-    qc.invalidateQueries({ queryKey: ['transactions'] })
-    const mechName = mechanics.find(m => m.id === selectedMechanicId)?.name ?? '-'
-    updateSession({
-      completed: { transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName, motor_type: motorType }
-    })
   }
 
-  function resetSession() {
-    const fresh = newSession(sessions.indexOf(activeSession) + 1)
-    setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...fresh, id: s.id, label: s.label } : s))
-  }
-
+  // --- Print Logic ---
   function printReceipt() {
     const el = receiptRef.current
     if (!el) return
-    
-    // Create a hidden iframe
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
     iframe.style.right = '0'
@@ -334,396 +308,316 @@ export function Cashier() {
     iframe.style.border = 'none'
     iframe.style.visibility = 'hidden'
     document.body.appendChild(iframe)
-
     const doc = iframe.contentWindow?.document
     if (!doc) return
-
     doc.open()
-    doc.write(`<html><head><title>Struk</title>
-    <style>
-      @page { size: 58mm auto; margin: 0; }
-      body { font-family: monospace; font-size: 12px; margin: 0; padding: 4px; width: 58mm; color: black; background: white; }
-    </style>
-    </head><body>
-    ${el.innerHTML}
-    </body></html>`)
+    doc.write(`<html><head><title>Struk</title><style>@page { size: 58mm auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 4px; width: 58mm; color: black; background: white; }</style></head><body>${el.innerHTML}</body></html>`)
     doc.close()
-
     setTimeout(() => {
       iframe.contentWindow?.focus()
       iframe.contentWindow?.print()
-      setTimeout(() => {
-        if (document.body.contains(iframe)) document.body.removeChild(iframe)
-      }, 2000)
+      setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 2000)
     }, 600)
   }
 
-  // --- Render completed view (inside cart panel) ---
-  function renderCompleted(comp: CompletedTransaction) {
-    const now = new Date()
-    const dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-    return (
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        <div className="text-center">
-          <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-2" />
-          <h3 className="font-bold text-gray-900">Transaksi Berhasil!</h3>
-          <p className="text-xs text-gray-500 mt-0.5">{comp.transaction_number}</p>
-        </div>
-        <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1.5">
-          <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-bold">{formatRupiah(comp.total)}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">Pembayaran</span><span>{comp.payment_method}</span></div>
-          {comp.payment_method === 'CASH' && <div className="flex justify-between"><span className="text-gray-500">Kembalian</span><span className="font-bold text-green-600">{formatRupiah(comp.change_amount)}</span></div>}
-          {comp.motor_type && <div className="flex justify-between"><span className="text-gray-500">Motor</span><span>{comp.motor_type}</span></div>}
-          {comp.mechanic_name !== '-' && <div className="flex justify-between"><span className="text-gray-500">Mekanik</span><span>{comp.mechanic_name}</span></div>}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={printReceipt} className="flex-1 flex items-center justify-center gap-1.5 border rounded-lg py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-            <Printer className="h-3.5 w-3.5" /> Cetak
-          </button>
-          <button onClick={() => downloadPDF('receipt-pdf', `Struk-${comp.transaction_number}`)} className="flex-1 flex items-center justify-center gap-1.5 bg-gray-900 text-white border rounded-lg py-2 text-xs font-medium hover:bg-gray-800">
-            <Download className="h-3.5 w-3.5" /> PDF
-          </button>
-        </div>
-        {showWaInput ? (
-          <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
-            <label className="block text-xs font-medium text-gray-700">Nomor WA Customer</label>
-            <input type="text" placeholder="Contoh: 08123456789" value={waCustomerPhone} onChange={e => updateSession({ waCustomerPhone: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" autoFocus />
-            <div className="flex gap-2">
-              <button onClick={() => updateSession({ showWaInput: false })} className="flex-1 bg-white border border-gray-300 text-gray-700 rounded-lg py-2 text-xs font-medium hover:bg-gray-100">Batal</button>
-              <button onClick={async () => {
-                if (!waCustomerPhone.trim()) return alert('Masukkan nomor WA terlebih dahulu!')
-                await downloadPDF('receipt-pdf', `Struk-${comp.transaction_number}`)
-                shareViaWhatsApp(waCustomerPhone, `Halo! Berikut struk transaksi ${comp.transaction_number} dari Rakyat Sinting Matic Shop 🏍️\nTotal: ${formatRupiah(comp.total)}\nMetode: ${comp.payment_method}${comp.mechanic_name !== '-' ? `\nMekanik: ${comp.mechanic_name}` : ''}\n\nTerima kasih sudah mempercayakan kendaraan Anda kepada kami! 🙏`)
-                updateSession({ showWaInput: false })
-              }} className="flex-1 bg-green-600 text-white rounded-lg py-2 text-xs font-medium hover:bg-green-700">Kirim WA</button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => updateSession({ showWaInput: true })} className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700">
-            <MessageCircle className="h-4 w-4" /> Kirim via WhatsApp
-          </button>
-        )}
-        <button onClick={resetSession} className="w-full bg-primary text-white rounded-lg py-2.5 text-sm font-bold hover:bg-primary/90">
-          Transaksi Baru (Tab Ini)
-        </button>
+  // --- Filtering ---
+  const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(search.toLowerCase())))
+  const filteredServices = services.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
 
-        {/* Hidden receipt */}
-        <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
-          <div style={{textAlign:'center'}}>
-            <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
-            <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
-            <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
-            <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>
+  if (loading) return <div className="flex h-full items-center justify-center p-8">Memuat Data...</div>
+
+  // Render Completed View
+  if (completedTx) {
+    const now = new Date()
+    return (
+      <div className="flex-1 bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+          <div className="bg-green-500 p-6 text-center text-white">
+            <CheckCircle2 className="h-16 w-16 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-1">Transaksi Berhasil!</h2>
+            <p className="text-green-100 opacity-90">{completedTx.trxNumber}</p>
           </div>
-          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{comp.transaction_number}</span></div>
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{dateStr}</span></div>
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{timeStr}</span></div>
-          {comp.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{comp.motor_type}</span></div>}
-          {comp.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{comp.mechanic_name}</span></div>}
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
-          {comp.items.map(i => (
-            <div key={i.id} style={{marginBottom:'5px'}}>
-              <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.name}</div>
-              <div style={{display:'flex', justifyContent:'space-between'}}>
-                <span style={{fontSize:'11px'}}>{i.qty} × {formatRupiah(i.price)}</span>
-                <span style={{fontSize:'11px', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</span>
-              </div>
+          <div className="p-6">
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between"><span className="text-gray-500">Total Tagihan</span><span className="font-bold">Rp {completedTx.total.toLocaleString('id-ID')}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Metode Pembayaran</span><span className="font-semibold">{completedTx.paymentMethod}</span></div>
+              {completedTx.paymentMethod === 'CASH' && (
+                <>
+                  <div className="flex justify-between"><span className="text-gray-500">Dibayar</span><span className="font-semibold">Rp {completedTx.paidAmount.toLocaleString('id-ID')}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Kembalian</span><span className="font-semibold text-green-600">Rp {completedTx.changeAmount.toLocaleString('id-ID')}</span></div>
+                </>
+              )}
             </div>
-          ))}
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(comp.subtotal)}</span></div>
-          {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(comp.discount)}</span></div>}
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(comp.total)}</span></div>
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
-          {comp.payment_method === 'CASH' && (
-            <div style={{width:'100%'}}>
-              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
-              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
+            <div className="flex gap-3">
+              <button onClick={() => { setCompletedTx(null); createNewSession() }} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200">Transaksi Baru</button>
+              <button onClick={printReceipt} className="flex-1 bg-primary text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary/90"><Printer className="h-4 w-4" /> Cetak Struk</button>
             </div>
-          )}
-          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
-            <div>Terima kasih telah mempercayakan</div>
-            <div>kendaraan Anda kepada kami!</div>
-            <div style={{marginTop:'6px', fontWeight:'bold'}}>— Rakyat Sinting Matic Shop —</div>
+          </div>
+          {/* HIDDEN RECEIPT */}
+          <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
+            <div style={{textAlign:'center'}}>
+              <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
+              <div style={{fontWeight:'bold', fontSize:'14px', marginBottom:'2px'}}>RSMS</div>
+              <div style={{fontSize:'11px', marginBottom:'2px'}}>Rakyat Sinting Matic Shop</div>
+              <div style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}}></div>
+            </div>
+            <div style={{fontSize:'11px', marginBottom:'6px'}}>
+              <div style={{display:'flex', justifyContent:'space-between'}}><span>Tgl:</span><span>{now.toLocaleDateString('id-ID')} {now.toLocaleTimeString('id-ID')}</span></div>
+              <div style={{display:'flex', justifyContent:'space-between'}}><span>No:</span><span>{completedTx.trxNumber}</span></div>
+              {completedTx.mechanicName && <div style={{display:'flex', justifyContent:'space-between'}}><span>Mekanik:</span><span>{completedTx.mechanicName}</span></div>}
+              {completedTx.motorType && <div style={{display:'flex', justifyContent:'space-between'}}><span>Motor:</span><span>{completedTx.motorType}</span></div>}
+            </div>
+            <div style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}}></div>
+            <div>
+              {completedTx.cart.map((item: any, i: number) => (
+                <div key={i} style={{marginBottom:'4px'}}>
+                  <div style={{marginBottom:'2px'}}>{item.name}</div>
+                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px'}}>
+                    <span>{item.qty} x {item.price.toLocaleString('id-ID')}</span>
+                    <span>{(item.qty * item.price).toLocaleString('id-ID')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}}></div>
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal:</span><span>{completedTx.subtotal.toLocaleString('id-ID')}</span></div>
+            {completedTx.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon:</span><span>-{completedTx.discount.toLocaleString('id-ID')}</span></div>}
+            <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', margin:'6px 0'}}><span>TOTAL:</span><span>{completedTx.total.toLocaleString('id-ID')}</span></div>
+            <div style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}}></div>
+            <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', marginBottom:'2px'}}><span>Bayar ({completedTx.paymentMethod}):</span><span>{completedTx.paidAmount.toLocaleString('id-ID')}</span></div>
+            {completedTx.paymentMethod === 'CASH' && <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px'}}><span>Kembali:</span><span>{completedTx.changeAmount.toLocaleString('id-ID')}</span></div>}
+            <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
+              <div style={{fontWeight:'bold'}}>Terima Kasih</div>
+              <div>Barang yang sudah dibeli</div>
+              <div>tidak dapat ditukar/dikembalikan</div>
+            </div>
           </div>
         </div>
       </div>
     )
   }
 
+  const subtotal = activeSession?.cart.reduce((sum, item) => sum + (item.price * item.qty), 0) || 0
+  const total = subtotal - discount
+
   return (
-    <div className="flex flex-col md:flex-row gap-4 h-full">
-      {/* Left: Search + Items */}
-      <div className="flex-1 space-y-3 min-w-0">
-        <div className="flex gap-2">
-          <div className="flex-1 flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 shadow-sm">
-            <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
-            <input type="text" placeholder="Cari produk atau jasa..." className="flex-1 text-sm outline-none bg-transparent" value={search} onChange={e => setSearch(e.target.value)} />
+    <div className="flex h-full bg-gray-50 flex-col md:flex-row">
+      {/* Left Area - Products & Services */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="bg-white p-4 border-b flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input type="text" placeholder="Cari barang atau jasa..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none" />
           </div>
-          <button onClick={() => setManualOpen(true)} className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-gray-50 shadow-sm whitespace-nowrap">
-            <Plus className="h-4 w-4" /> Input Manual
-          </button>
-        </div>
-
-        {stockWarning && <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-lg px-4 py-2.5 text-sm">{stockWarning}</div>}
-
-        <div className="flex gap-2">
-          <button onClick={() => { setTab('PRODUCT'); setCategoryFilter('') }} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${tab === 'PRODUCT' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-            <Package className="h-4 w-4" /> Produk
-          </button>
-          <button onClick={() => { setTab('SERVICE'); setCategoryFilter('') }} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${tab === 'SERVICE' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-            <Wrench className="h-4 w-4" /> Jasa
-          </button>
-        </div>
-
-        {/* Category filter chips */}
-        <div className="flex gap-2 flex-wrap">
-          {(tab === 'PRODUCT' ? productCategories : serviceCategories).map(cat => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat === 'Semua' ? '' : (cat || ''))}
-              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                (cat === 'Semua' && !categoryFilter) || categoryFilter === cat
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-primary hover:text-primary'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:max-h-[calc(100vh-160px)] overflow-y-auto pr-1 pb-4">
-          {tab === 'PRODUCT' ? (
-            filteredProducts.length === 0 ? <div className="col-span-full text-center py-8 text-gray-400 text-sm">Produk tidak ditemukan</div> :
-            filteredProducts.map(p => (
-              <button key={p.id} onClick={() => addProduct(p)} disabled={p.stock === 0}
-                className={`text-left bg-white border rounded-xl p-3 shadow-sm hover:border-primary hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed`}>
-                <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">PRODUK</span>
-                <p className="font-semibold text-gray-900 text-sm mt-1.5 leading-tight line-clamp-2">{p.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{p.sku}</p>
-                <p className="text-sm font-bold text-gray-900 mt-2">{formatRupiah(p.selling_price)}</p>
-                <p className={`text-xs mt-0.5 ${p.stock === 0 ? 'text-red-500' : p.stock <= 3 ? 'text-orange-500' : 'text-gray-400'}`}>Stok: {p.stock}</p>
-              </button>
-            ))
-          ) : (
-            filteredServices.length === 0 ? <div className="col-span-full text-center py-8 text-gray-400 text-sm">Jasa tidak ditemukan</div> :
-            filteredServices.map(s => (
-              <button key={s.id} onClick={() => addService(s)} className="text-left bg-white border rounded-xl p-3 shadow-sm hover:border-blue-500 hover:shadow-md transition-all">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">JASA</span>
-                <p className="font-semibold text-gray-900 text-sm mt-1.5 leading-tight line-clamp-2">{s.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{s.service_code}</p>
-                <p className="text-sm font-bold text-gray-900 mt-2">{formatRupiah(s.selling_price)}</p>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Right: Cart + Payment */}
-      <div className="bg-white border rounded-xl shadow-sm flex flex-col h-fit md:h-[calc(100vh-100px)] sticky top-4 w-full md:w-80 xl:w-96 flex-shrink-0">
-        {/* Session Tabs */}
-        <div className="flex items-center gap-1 px-2 pt-2 border-b overflow-x-auto">
-          {sessions.map(s => (
-            <div
-              key={s.id}
-              onClick={() => setActiveSessionId(s.id)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-t-lg text-xs font-semibold cursor-pointer transition-colors flex-shrink-0 border-b-2 ${
-                s.id === activeSession.id
-                  ? 'bg-primary/10 text-primary border-primary'
-                  : 'text-gray-500 hover:bg-gray-50 border-transparent'
-              }`}
-            >
-              {s.completed ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <ShoppingCart className="h-3 w-3" />}
-              <span>{s.label}</span>
-              {s.cart.length > 0 && !s.completed && (
-                <span className="bg-primary text-white text-[10px] font-bold px-1 rounded-full">{s.cart.reduce((sum, i) => sum + i.qty, 0)}</span>
-              )}
-              <button
-                onClick={e => { e.stopPropagation(); removeSession(s.id) }}
-                className="ml-0.5 text-gray-300 hover:text-red-400"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-          {sessions.length < 5 && (
-            <button
-              onClick={addSession}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg flex-shrink-0"
-              title="Tambah antrian baru"
-            >
-              <Plus className="h-3.5 w-3.5" /> Baru
-            </button>
-          )}
-        </div>
-
-        {/* Cart header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
-            <ShoppingCart className="h-4 w-4" /> {activeSession.label}
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            <button onClick={() => setActiveTab('PRODUCTS')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'PRODUCTS' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}>Produk</button>
+            <button onClick={() => setActiveTab('SERVICES')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'SERVICES' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}>Jasa</button>
           </div>
-          {cart.length > 0 && !completed && <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
         </div>
 
-        {completed ? renderCompleted(completed) : (
-          <>
-            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-[200px] md:min-h-0">
-              {cart.length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-sm">Keranjang kosong</div>
-              ) : cart.map(item => (
-                <div key={item.id} className="border rounded-lg p-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-medium text-gray-900 truncate">{item.name}</span>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
-                          item.type === 'PRODUCT' ? 'bg-primary/10 text-primary' :
-                          item.type === 'SERVICE' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
-                        }`}>{item.type}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{formatRupiah(item.price)}</p>
-                    </div>
-                    <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => changeQty(item.id, -1)} className="w-6 h-6 rounded border text-xs flex items-center justify-center hover:bg-gray-100">−</button>
-                      <span className="w-6 text-center text-sm font-medium">{item.qty}</span>
-                      <button onClick={() => changeQty(item.id, 1)} className="w-6 h-6 rounded border text-xs flex items-center justify-center hover:bg-gray-100">+</button>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">{formatRupiah(item.price * item.qty)}</span>
-                  </div>
+        <div className="flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {activeTab === 'PRODUCTS' ? filteredProducts.map(p => (
+              <div key={p.id} onClick={() => addToCart(p, 'PRODUCT')} className={`bg-white p-4 rounded-xl border-2 ${p.stock > 0 ? 'border-transparent hover:border-primary cursor-pointer' : 'border-gray-200 opacity-60 cursor-not-allowed'} transition-all shadow-sm flex flex-col h-full`}>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 text-sm line-clamp-2 mb-1">{p.name}</h3>
+                  <p className="text-xs text-gray-500">{p.sku}</p>
                 </div>
-              ))}
-            </div>
-
-            <div className="px-4 py-3 border-t space-y-2">
-              {/* Date input */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Tanggal</span>
-                <input type="date" value={txDate} onChange={e => updateSession({ txDate: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]" />
-              </div>
-
-              {/* Motor input */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Jenis Motor</span>
-                <input type="text" placeholder="Vario 125, Beat, dll..." value={motorType} onChange={e => updateSession({ motorType: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]" />
-              </div>
-
-              {/* Mechanic selector */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Mekanik</span>
-                <select value={selectedMechanicId} onChange={e => updateSession({ selectedMechanicId: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]">
-                  <option value="">— Pilih Mekanik —</option>
-                  {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </div>
-
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Subtotal</span><span>{formatRupiah(subtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Diskon (Rp)</span>
-                <input type="text" value={discount ? formatCurrencyInput(discount) : ""} placeholder="0"
-                  onChange={e => updateSession({ discount: parseFloat(parseCurrencyInput(e.target.value)) || 0 })}
-                  className="w-28 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
-              </div>
-              <div className="flex justify-between font-bold text-base border-t pt-2">
-                <span>TOTAL</span><span className="text-primary">{formatRupiah(total)}</span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-1.5 pt-1">
-                {(['CASH', 'QRIS', 'TRANSFER'] as const).map(m => (
-                  <button key={m} onClick={() => { updateSession({ paymentMethod: m, paidAmount: m !== 'CASH' ? total : paidAmount }) }}
-                    className={`py-2 rounded-lg text-xs font-bold border transition-colors ${paymentMethod === m ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                    {m}
-                  </button>
-                ))}
-              </div>
-
-              {paymentMethod === 'CASH' && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Uang Dibayar</span>
-                    <input type="text" value={paidAmount ? formatCurrencyInput(paidAmount) : ""}
-                      onChange={e => updateSession({ paidAmount: parseFloat(parseCurrencyInput(e.target.value)) || 0 })}
-                      className="w-32 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Kembalian</span>
-                    <span className={`font-semibold ${change < 0 ? 'text-red-500' : 'text-green-600'}`}>{formatRupiah(change)}</span>
-                  </div>
-                </div>
-              )}
-
-              {txError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">{txError}</div>}
-
-              <button onClick={completeTransaction} disabled={processing || cart.length === 0}
-                className="w-full bg-primary text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed mt-1">
-                <CheckCircle2 className="h-4 w-4" />
-                {processing ? 'Memproses...' : 'SELESAIKAN TRANSAKSI'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Manual Input Modal */}
-      {manualOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h2 className="font-semibold text-gray-900">Input Item Manual</h2>
-              <button onClick={() => setManualOpen(false)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5" /></button>
-            </div>
-            <form onSubmit={addManual} className="p-5 space-y-4">
-              {manualError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2.5 text-sm">{manualError}</div>}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nama Item <span className="text-red-500">*</span></label>
-                <input value={manualForm.name} onChange={e => setManualForm(f => ({ ...f, name: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="Nama barang atau jasa" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Jenis</label>
-                <select value={manualForm.type} onChange={e => setManualForm(f => ({ ...f, type: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
-                  <option value="Jasa">Jasa</option>
-                  <option value="Barang">Barang</option>
-                </select>
-                <p className="text-xs text-gray-400 mt-1">
-                  {manualForm.type === 'Barang' ? '⚠️ Item manual tidak terhubung dengan stok produk.' : 'Item manual tidak terhubung dengan daftar jasa.'}
-                </p>
-              </div>
-              <div className={`grid ${manualForm.type === 'Barang' ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Harga (Rp) <span className="text-red-500">*</span></label>
-                  <input type="text" value={formatCurrencyInput(manualForm.price)} onChange={e => setManualForm(f => ({ ...f, price: parseCurrencyInput(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
-                </div>
-                {manualForm.type === 'Barang' && (
+                <div className="mt-3 flex items-end justify-between">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Qty</label>
-                    <input type="number" min="1" value={manualForm.qty} onChange={e => setManualForm(f => ({ ...f, qty: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                    <p className="text-lg font-bold text-primary">Rp {p.price.toLocaleString('id-ID')}</p>
+                    <p className={`text-xs font-medium ${p.stock > 10 ? 'text-green-600' : p.stock > 0 ? 'text-orange-500' : 'text-red-500'}`}>
+                      Stok: {p.stock}
+                    </p>
+                  </div>
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center ${p.stock > 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'}`}>
+                    <Plus className="h-5 w-5" />
+                  </div>
+                </div>
+              </div>
+            )) : filteredServices.map(s => (
+              <div key={s.id} onClick={() => addToCart(s, 'SERVICE')} className="bg-white p-4 rounded-xl border-2 border-transparent hover:border-primary cursor-pointer transition-all shadow-sm flex flex-col h-full">
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 text-sm line-clamp-2 mb-1">{s.name}</h3>
+                  <p className="text-xs text-gray-500">{s.code}</p>
+                </div>
+                <div className="mt-3 flex items-end justify-between">
+                  <p className="text-lg font-bold text-primary">Rp {s.price.toLocaleString('id-ID')}</p>
+                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center"><Plus className="h-5 w-5" /></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Area - Open Bills & Cart */}
+      <div className="w-full md:w-[420px] bg-white flex flex-col border-l shadow-2xl relative z-10">
+        
+        {/* Open Bills Tabs */}
+        <div className="bg-gray-800 text-white flex overflow-x-auto p-2 gap-2 hide-scrollbar">
+          {sessions.map((s) => (
+            <button key={s.id} onClick={() => setActiveSessionId(s.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${s.id === activeSessionId ? 'bg-primary text-white shadow-md' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+              {s.hasUnsavedChanges && <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>}
+              <span className="font-semibold">{s.trxNumber.split('-').pop()}</span>
+              {s.id === activeSessionId && sessions.length > 1 && !s.isSavedInDb && (
+                <X className="h-4 w-4 ml-1 opacity-60 hover:opacity-100" onClick={(e) => { e.stopPropagation(); cancelOpenBill(); }} />
+              )}
+            </button>
+          ))}
+          <button onClick={createNewSession} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm text-gray-300 transition-colors">
+            <Plus className="h-4 w-4" /> Bon Baru
+          </button>
+        </div>
+
+        {activeSession ? (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            {/* Header info */}
+            <div className="p-4 border-b bg-gray-50/50">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="h-5 w-5 text-gray-400" />
+                <span className="font-semibold text-gray-700">{activeSession.trxNumber}</span>
+                {activeSession.isSavedInDb ? (
+                  <span className="ml-auto text-xs px-2 py-1 bg-green-100 text-green-700 rounded-md font-medium">Tersimpan di DB</span>
+                ) : (
+                  <span className="ml-auto text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-md font-medium">Draft Belum Disimpan</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><Wrench className="h-3 w-3" /> Mekanik</label>
+                  <select value={activeSession.mechanicId} onChange={e => updateActiveSession({ mechanicId: e.target.value })} className="w-full text-sm border-gray-300 rounded-lg shadow-sm focus:border-primary focus:ring-primary">
+                    <option value="">-- Pilih --</option>
+                    {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><ShoppingCart className="h-3 w-3" /> Motor</label>
+                  <input type="text" placeholder="Contoh: Vario 150" value={activeSession.motorType} onChange={e => updateActiveSession({ motorType: e.target.value })} className="w-full text-sm border-gray-300 rounded-lg shadow-sm focus:border-primary focus:ring-primary" />
+                </div>
+              </div>
+            </div>
+
+            {/* Cart Items */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30">
+              {activeSession.cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+                  <div className="p-4 bg-gray-100 rounded-full"><ShoppingCart className="h-8 w-8" /></div>
+                  <p className="text-sm font-medium">Keranjang masih kosong</p>
+                </div>
+              ) : (
+                activeSession.cart.map((item) => (
+                  <div key={item.id} className="flex items-start justify-between bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                    <div className="flex-1 pr-3">
+                      <h4 className="font-medium text-sm text-gray-900 leading-snug">{item.name}</h4>
+                      <p className="text-primary font-bold text-sm mt-1">Rp {item.price.toLocaleString('id-ID')}</p>
+                    </div>
+                    <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1 border">
+                      <button onClick={() => updateQty(item.id, -1)} className="p-1 hover:bg-white rounded text-gray-600 shadow-sm"><Minus className="h-4 w-4" /></button>
+                      <span className="w-6 text-center font-semibold text-sm">{item.qty}</span>
+                      <button onClick={() => updateQty(item.id, 1)} className="p-1 hover:bg-white rounded text-gray-600 shadow-sm"><Plus className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Actions & Checkout */}
+            <div className="p-4 bg-white border-t space-y-4">
+              
+              <div className="flex justify-between items-center text-lg font-bold text-gray-900">
+                <span>Total Tagihan:</span>
+                <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={saveOpenBill} disabled={processing || activeSession.cart.length === 0 || (!activeSession.hasUnsavedChanges && activeSession.isSavedInDb)}
+                  className="w-full py-2.5 px-4 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                  <Save className="h-4 w-4" /> Simpan Bon
+                </button>
+                <button onClick={cancelOpenBill} disabled={processing}
+                  className="w-full py-2.5 px-4 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+                  <Trash2 className="h-4 w-4" /> Batal / Hapus
+                </button>
+              </div>
+
+              <button onClick={() => setShowCheckout(true)} disabled={processing || activeSession.cart.length === 0}
+                className="w-full bg-primary text-white py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50 transition-transform active:scale-[0.98]">
+                <CheckCircle2 className="h-5 w-5" /> BAYAR LUNAS (Rp {subtotal.toLocaleString('id-ID')})
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Checkout Modal */}
+      {showCheckout && activeSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-primary text-white flex items-center justify-between">
+              <h2 className="font-bold text-lg flex items-center gap-2"><Calculator className="h-5 w-5" /> Selesaikan Pembayaran</h2>
+              <button onClick={() => setShowCheckout(false)} className="p-1 hover:bg-white/20 rounded-lg"><X className="h-6 w-6" /></button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              {txError && <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">{txError}</div>}
+              
+              {activeSession.hasUnsavedChanges && (
+                <div className="mb-4 bg-orange-50 text-orange-700 p-3 rounded-lg text-sm border border-orange-200">
+                  Ada perubahan yang belum disimpan. Sistem akan menyimpan & membooking stok secara otomatis saat dibayar.
+                </div>
+              )}
+
+              <div className="bg-gray-50 p-4 rounded-xl mb-6 space-y-2 border">
+                <div className="flex justify-between text-sm text-gray-500"><span>Subtotal</span><span>Rp {subtotal.toLocaleString('id-ID')}</span></div>
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-gray-500">Diskon</span>
+                  <div className="flex items-center gap-1">Rp <input type="number" value={discount} onChange={e => setDiscount(Number(e.target.value))} className="w-24 text-right p-1 border rounded" /></div>
+                </div>
+                <div className="pt-2 border-t flex justify-between font-bold text-lg text-gray-900"><span>Total</span><span>Rp {total.toLocaleString('id-ID')}</span></div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Metode Pembayaran</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['CASH', 'TRANSFER', 'QRIS'].map((m) => (
+                      <button key={m} onClick={() => setPaymentMethod(m as any)} className={`py-2 rounded-lg text-sm font-bold border-2 transition-all ${paymentMethod === m ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {paymentMethod === 'CASH' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Uang Diterima (Rp)</label>
+                    <input type="number" value={paidAmount || ''} onChange={e => setPaidAmount(Number(e.target.value))} className="w-full text-lg font-bold p-3 border-2 border-gray-300 rounded-xl focus:border-primary focus:ring-0 transition-colors" placeholder="0" />
+                    
+                    <div className="flex gap-2 mt-2">
+                      {[10000, 20000, 50000, 100000].map(amt => (
+                        <button key={amt} onClick={() => setPaidAmount(prev => (prev||0) + amt)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-1.5 rounded-lg text-xs font-semibold text-gray-600">+{amt / 1000}k</button>
+                      ))}
+                      <button onClick={() => setPaidAmount(total)} className="flex-1 bg-primary/10 text-primary hover:bg-primary/20 py-1.5 rounded-lg text-xs font-bold">PAS</button>
+                    </div>
+
+                    {paidAmount > 0 && (
+                      <div className="mt-4 p-4 rounded-xl bg-gray-50 border flex justify-between items-center">
+                        <span className="font-semibold text-gray-500">Kembalian:</span>
+                        <span className={`text-xl font-bold ${paidAmount >= total ? 'text-green-600' : 'text-red-500'}`}>Rp {(paidAmount - total).toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-              {manualForm.price && manualForm.qty && (
-                <div className="bg-gray-50 rounded-lg px-4 py-2.5 text-sm flex justify-between">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-bold">{formatRupiah((parseFloat(manualForm.price) || 0) * (parseInt(manualForm.qty) || 0))}</span>
-                </div>
-              )}
-              <div className="flex gap-3 justify-end pt-2 border-t">
-                <button type="button" onClick={() => setManualOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 border rounded-lg hover:bg-gray-50">Batal</button>
-                <button type="submit" className="px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90">Tambahkan</button>
-              </div>
-            </form>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t">
+              <button onClick={finalizePayment} disabled={processing || (paymentMethod === 'CASH' && paidAmount < total)}
+                className="w-full bg-primary text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50 transition-all">
+                {processing ? 'Memproses...' : 'SELESAIKAN PEMBAYARAN'}
+              </button>
+            </div>
           </div>
         </div>
       )}
