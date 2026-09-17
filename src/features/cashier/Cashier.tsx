@@ -62,33 +62,44 @@ export function Cashier() {
 
   async function fetchData() {
     setLoading(true)
-    const [prodRes, servRes, mechRes, billRes] = await Promise.all([
+    const [prodRes, servRes, mechRes] = await Promise.all([
       supabase.from('products').select('*').eq('status', 'ACTIVE'),
       supabase.from('services').select('*').eq('status', 'ACTIVE'),
       supabase.from('mechanics').select('*').eq('status', 'ACTIVE'),
-      supabase.from('transactions').select('*').eq('status', 'OPEN').order('created_at', { ascending: true })
     ])
     
     if (prodRes.data) setProducts(prodRes.data)
     if (servRes.data) setServices(servRes.data)
     if (mechRes.data) setMechanics(mechRes.data)
     
-    // Initialize sessions from Open Bills
-    if (billRes.data && billRes.data.length > 0) {
-      const loadedSessions: Session[] = billRes.data.map(bill => ({
-        id: bill.id,
-        trxNumber: bill.transaction_number,
-        cart: Array.isArray(bill.draft_cart) ? bill.draft_cart : [],
-        mechanicId: bill.mechanic_id || '',
-        motorType: bill.motor_type || '',
-        hasUnsavedChanges: false,
-        isSavedInDb: true
-      }))
-      setSessions(loadedSessions)
-      setActiveSessionId(loadedSessions[0].id)
-    } else {
-      createNewSession()
+    // Try to load Open Bills - gracefully handle if SQL not yet run
+    try {
+      const billRes = await supabase
+        .from('transactions')
+        .select('id, transaction_number, draft_cart, mechanic_id, motor_type, status')
+        .eq('status', 'OPEN')
+        .order('created_at', { ascending: true })
+      
+      if (!billRes.error && billRes.data && billRes.data.length > 0) {
+        const loadedSessions: Session[] = billRes.data.map(bill => ({
+          id: bill.id,
+          trxNumber: bill.transaction_number,
+          cart: Array.isArray(bill.draft_cart) ? bill.draft_cart : [],
+          mechanicId: bill.mechanic_id || '',
+          motorType: bill.motor_type || '',
+          hasUnsavedChanges: false,
+          isSavedInDb: true
+        }))
+        setSessions(loadedSessions)
+        setActiveSessionId(loadedSessions[0].id)
+        setLoading(false)
+        return
+      }
+    } catch (_) {
+      // SQL not yet run - fall through to empty session
     }
+    
+    createNewSession()
     setLoading(false)
   }
 
