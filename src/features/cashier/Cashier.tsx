@@ -7,10 +7,10 @@ import { useAuth } from '@/contexts/AuthContext'
 type ItemType = 'PRODUCT' | 'SERVICE'
 
 interface Product {
-  id: string; name: string; sku: string; price: number; stock: number; category: string;
+  id: string; name: string; sku: string; selling_price: number; stock: number; category: string;
 }
 interface Service {
-  id: string; name: string; code: string; price: number; category: string;
+  id: string; name: string; service_code: string; selling_price: number; category: string;
 }
 interface CartItem {
   id: string; type: ItemType; product_id?: string; service_id?: string;
@@ -149,8 +149,8 @@ export function Cashier() {
         id: crypto.randomUUID(), type,
         product_id: type === 'PRODUCT' ? item.id : undefined,
         service_id: type === 'SERVICE' ? item.id : undefined,
-        name: item.name, sku: type === 'PRODUCT' ? item.sku : undefined,
-        price: item.price, qty: 1, is_service: type === 'SERVICE'
+        name: item.name, sku: type === 'PRODUCT' ? item.sku : item.service_code,
+        price: item.selling_price, qty: 1, is_service: type === 'SERVICE'
       }
       updateActiveSession({ cart: [...activeSession.cart, newItem] })
     }
@@ -437,7 +437,7 @@ export function Cashier() {
                 </div>
                 <div className="mt-3 flex items-end justify-between">
                   <div>
-                    <p className="text-lg font-bold text-primary">Rp {p.price.toLocaleString('id-ID')}</p>
+                    <p className="text-lg font-bold text-primary">Rp {p.selling_price.toLocaleString('id-ID')}</p>
                     <p className={`text-xs font-medium ${p.stock > 10 ? 'text-green-600' : p.stock > 0 ? 'text-orange-500' : 'text-red-500'}`}>
                       Stok: {p.stock}
                     </p>
@@ -451,10 +451,10 @@ export function Cashier() {
               <div key={s.id} onClick={() => addToCart(s, 'SERVICE')} className="bg-white p-4 rounded-xl border-2 border-transparent hover:border-primary cursor-pointer transition-all shadow-sm flex flex-col h-full">
                 <div className="flex-1">
                   <h3 className="font-bold text-gray-900 text-sm line-clamp-2 mb-1">{s.name}</h3>
-                  <p className="text-xs text-gray-500">{s.code}</p>
+                  <p className="text-xs text-gray-500">{s.service_code}</p>
                 </div>
                 <div className="mt-3 flex items-end justify-between">
-                  <p className="text-lg font-bold text-primary">Rp {s.price.toLocaleString('id-ID')}</p>
+                  <p className="text-lg font-bold text-primary">Rp {s.selling_price.toLocaleString('id-ID')}</p>
                   <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center"><Plus className="h-5 w-5" /></div>
                 </div>
               </div>
