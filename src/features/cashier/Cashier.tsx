@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, ShoppingCart, Plus, Minus, X, CheckCircle2, Calculator, Wrench, FileText, Printer, Save, Trash2 } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 
 // ... (Types & Interfaces) ...
