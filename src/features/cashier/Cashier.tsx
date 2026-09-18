@@ -713,67 +713,68 @@ export function Cashier() {
 
       {/* Manual Input Modal */}
       {manualOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h2 className="font-semibold text-gray-900">Input Item Manual (Bisa Banyak)</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b">
+              <h2 className="font-semibold text-gray-900 text-sm sm:text-base">Input Item Manual</h2>
               <button onClick={() => setManualOpen(false)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5" /></button>
             </div>
-            
-            <div className="p-5 overflow-y-auto flex-1">
-              {manualError && <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2.5 text-sm">{manualError}</div>}
-              
-              <div className="space-y-4">
+
+            <div className="p-3 sm:p-5 overflow-y-auto flex-1">
+              {manualError && <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{manualError}</div>}
+
+              <div className="space-y-3">
                 {manualForm.map((item, index) => (
-                  <div key={item.id} className="p-4 border rounded-xl bg-gray-50/50 relative">
+                  <div key={item.id} className="p-3 sm:p-4 border rounded-xl bg-gray-50/50 relative">
                     {manualForm.length > 1 && (
-                      <button onClick={() => removeManualRow(item.id)} className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1.5 rounded-full hover:bg-red-200 border border-white">
+                      <button onClick={() => removeManualRow(item.id)} className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1.5 rounded-full hover:bg-red-200 border-2 border-white z-10">
                         <X className="h-3 w-3" />
                       </button>
                     )}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                      <div className={item.type === 'Barang' ? "md:col-span-5" : "md:col-span-7"}>
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                      <div className="flex-1 min-w-0">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Nama Item {index + 1}</label>
                         <input value={item.name} onChange={e => updateManualRow(item.id, 'name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="Nama barang / jasa" />
                       </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
-                        <select value={item.type} onChange={e => updateManualRow(item.id, 'type', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
-                          <option value="Jasa">Jasa</option>
-                          <option value="Barang">Barang</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-3">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Harga (Rp)</label>
-                        <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateManualRow(item.id, 'price', parseCurrencyInput(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
-                      </div>
-                      {item.type === 'Barang' && (
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
-                          <input type="number" min="1" value={item.qty} onChange={e => updateManualRow(item.id, 'qty', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                      <div className="flex gap-2 sm:gap-3">
+                        <div className="w-24 flex-shrink-0">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
+                          <select value={item.type} onChange={e => updateManualRow(item.id, 'type', e.target.value)} className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
+                            <option value="Jasa">Jasa</option>
+                            <option value="Barang">Barang</option>
+                          </select>
                         </div>
-                      )}
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Harga (Rp)</label>
+                          <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateManualRow(item.id, 'price', parseCurrencyInput(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="0" />
+                        </div>
+                        {item.type === 'Barang' && (
+                          <div className="w-16 sm:w-20 flex-shrink-0">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
+                            <input type="number" min="1" value={item.qty} onChange={e => updateManualRow(item.id, 'qty', e.target.value)} className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 text-center" />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-              
-              <button onClick={addManualRow} className="mt-4 flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors">
-                <Plus className="h-4 w-4" /> Tambah Baris Input
+
+              <button onClick={addManualRow} className="mt-3 flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors">
+                <Plus className="h-4 w-4" /> Tambah Baris
               </button>
-              
             </div>
 
-            <div className="flex gap-3 justify-between items-center p-5 border-t bg-gray-50 rounded-b-xl">
-              <div className="text-sm">
-                <span className="text-gray-500">Total Subtotal: </span>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-between sm:items-center p-3 sm:p-5 border-t bg-gray-50 rounded-b-xl">
+              <div className="text-sm text-center sm:text-left">
+                <span className="text-gray-500">Total: </span>
                 <span className="font-bold text-gray-900">
                   {formatRupiah(manualForm.reduce((sum, item) => sum + ((parseFloat(item.price) || 0) * (item.type === 'Jasa' ? 1 : parseInt(item.qty) || 0)), 0))}
                 </span>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setManualOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 border rounded-lg hover:bg-gray-100 bg-white">Batal</button>
-                <button onClick={addManual} className="px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90">Tambahkan Semua</button>
+                <button type="button" onClick={() => setManualOpen(false)} className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 border rounded-lg hover:bg-gray-100 bg-white">Batal</button>
+                <button onClick={addManual} className="flex-1 sm:flex-none px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90">Tambahkan Semua</button>
               </div>
             </div>
           </div>
