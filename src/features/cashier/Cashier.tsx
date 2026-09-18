@@ -732,7 +732,7 @@ export function Cashier() {
                       </button>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                      <div className="md:col-span-5">
+                      <div className={item.type === 'Barang' ? "md:col-span-5" : "md:col-span-7"}>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Nama Item {index + 1}</label>
                         <input value={item.name} onChange={e => updateManualRow(item.id, 'name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="Nama barang / jasa" />
                       </div>
@@ -747,10 +747,12 @@ export function Cashier() {
                         <label className="block text-xs font-medium text-gray-500 mb-1">Harga (Rp)</label>
                         <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateManualRow(item.id, 'price', parseCurrencyInput(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
                       </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
-                        <input type="number" min="1" disabled={item.type === 'Jasa'} value={item.type === 'Jasa' ? '1' : item.qty} onChange={e => updateManualRow(item.id, 'qty', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:bg-gray-100" />
-                      </div>
+                      {item.type === 'Barang' && (
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
+                          <input type="number" min="1" value={item.qty} onChange={e => updateManualRow(item.id, 'qty', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
