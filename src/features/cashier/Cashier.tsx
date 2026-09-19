@@ -137,6 +137,54 @@ export function Cashier() {
   // Init: make sure activeSessionId matches first session
   const activeSession = sessions.find(s => s.id === activeSessionId) ?? sessions[0]
 
+  const saveOpenBill = async () => {
+    const session = activeSession;
+    if (!session || session.cart.length === 0) return alert('Keranjang kosong!');
+    
+    setProcessing(true);
+    const cartJson = session.cart.map(i => ({
+      item_type: i.type, product_id: i.product_id ?? null, service_id: i.service_id ?? null,
+      item_name: i.name, sku: i.sku ?? null, quantity: i.qty, unit_price: i.price, subtotal: i.qty * i.price,
+      stock_tracked: i.type === 'PRODUCT', is_service: i.is_service
+    }));
+
+    const trxNumber = session.trxNumber || generateTransactionNumber();
+
+    const { error } = await supabase.rpc('sync_open_bill_v2', {
+      p_tx_id: session.id,
+      p_tx_number: trxNumber,
+      p_mechanic_id: selectedMechanicId || null,
+      p_motor_type: motorType || '',
+      p_new_cart: cartJson,
+      p_created_by: user?.id
+    });
+
+    setProcessing(false);
+    if (error) {
+      alert('Gagal menyimpan bon: ' + error.message);
+    } else {
+      updateSession({ isSavedInDb: true, trxNumber });
+      qc.invalidateQueries({ queryKey: ['cashier-products'] });
+      alert('Bon berhasil disimpan (Draft)! Stok otomatis terbooking.');
+    }
+  };
+
+  const cancelOpenBill = async () => {
+    const session = activeSession;
+    if (!session) return;
+    
+    if (confirm('Batalkan transaksi ini? Stok (jika sudah tersimpan) akan dikembalikan.')) {
+      if (session.isSavedInDb) {
+        setProcessing(true);
+        await supabase.rpc('cancel_open_bill', { p_tx_id: session.id });
+        setProcessing(false);
+        qc.invalidateQueries({ queryKey: ['cashier-products'] });
+      }
+      removeSession(session.id);
+    }
+  };
+
+
   function updateSession(patch: Partial<CartSession>) {
     setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...s, ...patch } : s))
   }
@@ -640,6 +688,18 @@ export function Cashier() {
               ))}
             </div>
 
+                        {/* Open Bill Action Buttons */}
+            <div className="px-4 pt-2 pb-1 grid grid-cols-2 gap-2">
+              <button onClick={saveOpenBill} disabled={processing || cart.length === 0}
+                className="w-full py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-lg font-bold text-xs flex items-center justify-center transition-colors disabled:opacity-50">
+                 Simpan (Draft)
+              </button>
+              <button onClick={cancelOpenBill} disabled={processing}
+                className="w-full py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold text-xs flex items-center justify-center transition-colors">
+                 Batalkan
+              </button>
+            </div>
+            
             <div className="px-4 py-3 border-t space-y-2">
               {/* Date input */}
               <div className="flex items-center justify-between text-sm">
