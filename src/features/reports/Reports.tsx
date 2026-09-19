@@ -70,7 +70,7 @@ export function Reports() {
         .select('total, payment_method, created_at')
         .gte('created_at', from + 'T00:00:00')
         .lte('created_at', to + 'T23:59:59')
-        .eq('status', 'COMPLETED')
+        .in('status', ['COMPLETED', 'PAID'])
       return data ?? []
     }
   })

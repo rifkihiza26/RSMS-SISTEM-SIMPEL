@@ -175,7 +175,7 @@ function KasirDashboard() {
     queryFn: async () => {
       const { data: trxs } = await supabase.from('transactions')
         .select('total, payment_method')
-        .eq('status', 'COMPLETED')
+        .in('status', ['COMPLETED', 'PAID'])
         .gte('created_at', today + 'T00:00:00')
         .lte('created_at', today + 'T23:59:59')
       const all = trxs ?? []
