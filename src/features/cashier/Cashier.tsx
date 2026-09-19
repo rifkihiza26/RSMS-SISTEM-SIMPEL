@@ -391,6 +391,7 @@ export function Cashier() {
     }
     qc.invalidateQueries({ queryKey: ['cashier-products'] })
     qc.invalidateQueries({ queryKey: ['transactions'] })
+    qc.invalidateQueries({ queryKey: ['dashboard'] })
     const mechName = mechanics.find(m => m.id === selectedMechanicId)?.name ?? '-'
     updateSession({
       completed: { transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName, motor_type: motorType }
