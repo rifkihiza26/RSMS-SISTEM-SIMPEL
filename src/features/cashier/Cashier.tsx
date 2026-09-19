@@ -300,7 +300,7 @@ export function Cashier() {
       stock_tracked: i.type === 'PRODUCT', is_service: i.is_service,
     }))
 
-    const { error: syncErr } = await supabase.rpc('sync_open_bill', {
+    const { error: syncErr } = await supabase.rpc('sync_open_bill_v2', {
       p_tx_id: session.id, p_tx_number: trxNumber, p_mechanic_id: selectedMechanicId || null,
       p_motor_type: motorType || '', p_new_cart: cartJson, p_created_by: user?.id
     })
