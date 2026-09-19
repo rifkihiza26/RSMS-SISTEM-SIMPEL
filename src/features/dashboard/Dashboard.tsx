@@ -173,11 +173,12 @@ function KasirDashboard() {
   const { data: stats } = useQuery({
     queryKey: ['dashboard', 'kasir-stats', today],
     queryFn: async () => {
+      // Gunakan offset WIB (UTC+7) agar rentang tanggal cocok dengan waktu lokal
       const { data: trxs } = await supabase.from('transactions')
         .select('total, payment_method')
         .in('status', ['COMPLETED', 'PAID'])
-        .gte('created_at', today + 'T00:00:00')
-        .lte('created_at', today + 'T23:59:59')
+        .gte('created_at', today + 'T00:00:00+07:00')
+        .lte('created_at', today + 'T23:59:59+07:00')
       const all = trxs ?? []
       return {
         total: all.reduce((s, t) => s + t.total, 0),
