@@ -52,7 +52,7 @@ export function Expenses() {
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ['expenses', dateFilter, startDate, endDate],
     queryFn: async () => {
-      let q = supabase.from('expenses').select('*, profiles(full_name), mechanics(name)').order('created_at', { ascending: false })
+      let q = supabase.from('expenses').select('*, profiles(full_name), mechanics(name)').order('date', { ascending: false }).order('created_at', { ascending: false })
       if (dateFilter === 'today') {
         const today = new Date().toISOString().split('T')[0]
         q = q.gte('date', today)

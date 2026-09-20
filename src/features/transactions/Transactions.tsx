@@ -52,8 +52,8 @@ export function Transactions() {
     queryKey: ['transactions', dateFrom, dateTo, payFilter],
     queryFn: async () => {
       let q = supabase.from('transactions').select('*, profiles(full_name)').order('created_at', { ascending: false })
-      if (dateFrom) q = q.gte('created_at', dateFrom + 'T00:00:00')
-      if (dateTo) q = q.lte('created_at', dateTo + 'T23:59:59')
+      if (dateFrom) q = q.gte('created_at', dateFrom + 'T00:00:00+07:00')
+      if (dateTo) q = q.lte('created_at', dateTo + 'T23:59:59+07:00')
       if (payFilter) q = q.eq('payment_method', payFilter)
       const { data } = await q
       return (data ?? []) as Transaction[]
