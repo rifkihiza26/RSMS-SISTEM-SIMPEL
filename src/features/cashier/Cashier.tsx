@@ -127,8 +127,8 @@ export function Cashier() {
   // Auto-save sessions to localStorage whenever they change
   useEffect(() => {
     try {
-      // Only persist non-completed sessions
-      const toSave = sessions.map(s => s.completed ? { ...s, completed: null } : s)
+      // Jangan simpan sesi yang sudah selesai agar tidak ter-load ulang tanpa UUID baru
+      const toSave = sessions.filter(s => !s.completed)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
       localStorage.setItem(ACTIVE_KEY, activeSessionId)
     } catch {}
