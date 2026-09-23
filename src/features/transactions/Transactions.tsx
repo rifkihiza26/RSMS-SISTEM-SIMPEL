@@ -81,10 +81,14 @@ export function Transactions() {
   
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      await supabase.from('incomes').delete().eq('transaction_id', id)
       const { error } = await supabase.from('transactions').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    }
   })
 
   const { data: mechanics = [] } = useQuery({
@@ -143,8 +147,8 @@ export function Transactions() {
       created_at: targetTime,
     }).eq('transaction_id', editId)
 
-    qc.invalidateQueries({ queryKey: ['transactions'] })
-    qc.invalidateQueries({ queryKey: ['incomes'] })
+    qc.invalidateQueries({ queryKey: ['transactions'] }); qc.invalidateQueries({ queryKey: ['dashboard'] })
+    qc.invalidateQueries({ queryKey: ['incomes'] }); qc.invalidateQueries({ queryKey: ['dashboard'] })
     setEditId(null)
     setEditSaving(false)
   }

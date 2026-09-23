@@ -92,7 +92,10 @@ export function Expenses() {
       const { error } = await supabase.from('expenses').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    }
   })
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0)
@@ -114,7 +117,7 @@ export function Expenses() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['expenses'] })
+      qc.invalidateQueries({ queryKey: ['expenses'] }); qc.invalidateQueries({ queryKey: ['dashboard'] })
       setModalOpen(false)
       setForm(prev => ({ category: '', mechanic_id: '', payment_method: 'CASH', description: '', date: prev.date }))
       setCart([])

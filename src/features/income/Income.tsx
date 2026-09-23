@@ -103,7 +103,10 @@ export function Income() {
       const { error } = await supabase.from('incomes').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['incomes'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['incomes'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    }
   })
 
   const saveMutation = useMutation({
@@ -121,7 +124,7 @@ export function Income() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['incomes'] })
+      qc.invalidateQueries({ queryKey: ['incomes'] }); qc.invalidateQueries({ queryKey: ['dashboard'] })
       setModalOpen(false)
       setForm(prev => ({ category: '', amount: '', payment_method: 'CASH', description: '', date: prev.date }))
     },
