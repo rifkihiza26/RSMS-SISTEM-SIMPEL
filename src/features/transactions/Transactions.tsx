@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { formatRupiah, formatDateShort } from '@/lib/utils'
 import { downloadPDF } from '@/lib/pdf'
-import { Search, Eye , Trash, Printer } from 'lucide-react'
+import { Search, Eye, Trash, Printer, Edit2 } from 'lucide-react'
 
 type Transaction = {
   id: string
@@ -19,7 +19,12 @@ type Transaction = {
   created_at: string
   notes?: string | null
   profiles?: { full_name: string | null } | null
+  motor_type?: string | null
+  mechanic_id?: string | null
 }
+
+type Mechanic = { id: string; name: string }
+type EditForm = { date: string; payment_method: string; motor_type: string; mechanic_id: string }
 
 type TrxItem = {
   id: string
@@ -47,6 +52,10 @@ export function Transactions() {
   const [dateTo, setDateTo] = useState('')
   const [payFilter, setPayFilter] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<EditForm>({ date: '', payment_method: 'CASH', motor_type: '', mechanic_id: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ['transactions', dateFrom, dateTo, payFilter],
@@ -77,6 +86,68 @@ export function Transactions() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] })
   })
+
+  const { data: mechanics = [] } = useQuery({
+    queryKey: ['mechanics'],
+    queryFn: async () => {
+      const { data } = await supabase.from('mechanics').select('id, name').eq('active', true).order('name')
+      return (data ?? []) as Mechanic[]
+    }
+  })
+
+  function openEdit(t: Transaction) {
+    setEditId(t.id)
+    setEditError('')
+    setEditForm({
+      date: t.created_at.split('T')[0],
+      payment_method: t.payment_method,
+      motor_type: t.motor_type ?? '',
+      mechanic_id: t.mechanic_id ?? '',
+    })
+  }
+
+  async function saveEdit() {
+    if (!editId) return
+    setEditSaving(true)
+    setEditError('')
+    const trx = transactions.find(t => t.id === editId)
+    if (!trx) { setEditSaving(false); return }
+
+    const mechanic = mechanics.find(m => m.id === editForm.mechanic_id)
+    const noteParts = [
+      mechanic ? `Mekanik: ${mechanic.name}` : '',
+      editForm.motor_type ? `Motor: ${editForm.motor_type}` : ''
+    ].filter(Boolean)
+    const newNotes = noteParts.join(' | ') || trx.notes || ''
+
+    const targetTime = editForm.date + 'T12:00:00+07:00'
+
+    const { error } = await supabase.from('transactions').update({
+      payment_method: editForm.payment_method,
+      motor_type: editForm.motor_type || null,
+      mechanic_id: editForm.mechanic_id || null,
+      notes: newNotes,
+      created_at: targetTime,
+    }).eq('id', editId)
+
+    if (error) {
+      setEditError('Gagal menyimpan: ' + error.message)
+      setEditSaving(false)
+      return
+    }
+
+    // Update income record juga
+    await supabase.from('incomes').update({
+      payment_method: editForm.payment_method,
+      date: editForm.date,
+      created_at: targetTime,
+    }).eq('transaction_id', editId)
+
+    qc.invalidateQueries({ queryKey: ['transactions'] })
+    qc.invalidateQueries({ queryKey: ['incomes'] })
+    setEditId(null)
+    setEditSaving(false)
+  }
 
   const filtered = transactions.filter(t =>
     t.transaction_number.toLowerCase().includes(search.toLowerCase())
@@ -131,6 +202,7 @@ export function Transactions() {
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{t.profiles?.full_name ?? '-'}</td>
                     <td className="px-4 py-3 text-right flex justify-end gap-1">
                       <button onClick={() => setDetailId(t.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Detail"><Eye className="h-4 w-4" /></button>
+                      {(isOwner || isAdmin) && <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50" title="Edit"><Edit2 className="w-4 h-4" /></button>}
                       {(isOwner || isAdmin) && <button onClick={() => { if(confirm('Yakin hapus transaksi beserta itemnya? Pemasukan terkait akan terhapus juga otomatis jika ada cascade, tapi stok tidak kembali otomatis.')) deleteMutation.mutate(t.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}
                     </td>
                   </tr>
@@ -140,6 +212,64 @@ export function Transactions() {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {editId && (() => {
+        const t = transactions.find(x => x.id === editId)
+        if (!t) return null
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Edit Transaksi</h2>
+                  <p className="text-xs text-gray-400">{t.transaction_number}</p>
+                </div>
+                <button onClick={() => setEditId(null)} className="p-1 rounded-lg hover:bg-gray-100">✕</button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">Tanggal Transaksi</label>
+                  <input type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">Metode Pembayaran</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['CASH', 'QRIS', 'TRANSFER'] as const).map(m => (
+                      <button key={m} onClick={() => setEditForm(f => ({ ...f, payment_method: m }))}
+                        className={`py-2 rounded-lg text-sm font-semibold border transition-colors ${editForm.payment_method === m ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">Mekanik</label>
+                  <select value={editForm.mechanic_id} onChange={e => setEditForm(f => ({ ...f, mechanic_id: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
+                    <option value="">— Tidak Ada / Tidak Diketahui —</option>
+                    {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">Jenis Motor</label>
+                  <input type="text" value={editForm.motor_type} onChange={e => setEditForm(f => ({ ...f, motor_type: e.target.value }))}
+                    placeholder="Vario 125, Beat, dll..." className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                {editError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{editError}</div>}
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => setEditId(null)} className="flex-1 border border-gray-300 rounded-lg py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
+                  <button onClick={saveEdit} disabled={editSaving}
+                    className="flex-1 bg-primary text-white rounded-lg py-2.5 text-sm font-bold hover:bg-primary/90 disabled:opacity-60">
+                    {editSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Detail Modal */}
       {detailId && detailTrx && (
