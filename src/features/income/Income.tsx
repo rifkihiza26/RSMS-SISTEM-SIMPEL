@@ -16,6 +16,7 @@ type Income = {
   created_by: string | null
   profiles?: { full_name: string | null } | null
   transactions?: { mechanics?: { name: string } | null } | null
+  mechanic_name?: string | null
 }
 
 export function Income() {
@@ -33,7 +34,7 @@ export function Income() {
   const { data: incomes = [], isLoading } = useQuery({
     queryKey: ['incomes', dateFilter, startDate, endDate],
     queryFn: async () => {
-      let q = supabase.from('incomes').select('*, profiles(full_name), transactions(mechanics(name))').order('date', { ascending: false }).order('created_at', { ascending: false })
+      let q = supabase.from('incomes').select('*, profiles(full_name)').order('date', { ascending: false }).order('created_at', { ascending: false })
       if (dateFilter === 'today') {
         const today = new Date().toISOString().split('T')[0]
         q = q.gte('date', today)
@@ -48,7 +49,25 @@ export function Income() {
       }
       const { data, error } = await q
       if (error) throw error
-      return (data ?? []) as Income[]
+      const rows = (data ?? []) as Income[]
+
+      // Ambil nama mekanik untuk baris yang punya transaction_id
+      const trxIds = rows.filter(r => r.transaction_id).map(r => r.transaction_id as string)
+      if (trxIds.length > 0) {
+        const { data: trxData } = await supabase
+          .from('transactions')
+          .select('id, mechanics(name)')
+          .in('id', trxIds)
+        if (trxData) {
+          const trxMap = Object.fromEntries(trxData.map((t: any) => [t.id, t.mechanics?.name ?? null]))
+          rows.forEach(r => {
+            if (r.transaction_id) {
+              r.mechanic_name = trxMap[r.transaction_id] ?? null
+            }
+          })
+        }
+      }
+      return rows
     }
   })
 
@@ -289,7 +308,7 @@ export function Income() {
                 <td className="py-2 px-2">{formatDateShort(new Date(i.date))}</td>
                 <td className="py-2 px-2 font-medium">{i.category}</td>
                 <td className="py-2 px-2">{i.description || '-'}</td>
-                <td className="py-2 px-2">{i.transactions?.mechanics?.name || '-'}</td>
+                <td className="py-2 px-2">{i.transactions?.mechanics?.name || i.mechanic_name || '-'}</td>
                 <td className="py-2 px-2">{i.payment_method}</td>
                 <td className="py-2 px-2 text-right">{formatRupiah(i.amount)}</td>
               </tr>
