@@ -11,7 +11,7 @@ type NavItem = { name: string; href: string; icon: React.ElementType; roles: ('A
 
 const navItems: NavItem[] = [
   { name: 'Dashboard',   href: '/dashboard',    icon: LayoutDashboard, roles: ['ADMIN', 'KASIR', 'OWNER'] },
-  { name: 'Kasir',       href: '/cashier',      icon: ShoppingCart,    roles: ['KASIR'] },
+  { name: 'Kasir',       href: '/cashier',      icon: ShoppingCart,    roles: ['ADMIN', 'KASIR'] },
   { name: 'Transaksi',   href: '/transactions', icon: ListOrdered,     roles: ['ADMIN', 'KASIR'] },
   { name: 'Pemasukan',   href: '/income',       icon: Wallet,          roles: ['ADMIN', 'OWNER'] },
   { name: 'Pengeluaran', href: '/expenses',     icon: Receipt,         roles: ['ADMIN', 'OWNER'] },

@@ -690,14 +690,10 @@ export function Cashier() {
             </div>
 
                         {/* Open Bill Action Buttons */}
-            <div className="px-4 pt-2 pb-1 grid grid-cols-2 gap-2">
-              <button onClick={saveOpenBill} disabled={processing || cart.length === 0}
-                className="w-full py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-lg font-bold text-xs flex items-center justify-center transition-colors disabled:opacity-50">
-                 Simpan (Draft)
-              </button>
+            <div className="px-4 pt-2 pb-1 flex justify-end">
               <button onClick={cancelOpenBill} disabled={processing}
-                className="w-full py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold text-xs flex items-center justify-center transition-colors">
-                 Batalkan
+                className="py-1.5 px-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg text-xs flex items-center gap-1 transition-colors">
+                ✕ Batalkan Sesi
               </button>
             </div>
             
@@ -762,11 +758,18 @@ export function Cashier() {
 
               {txError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">{txError}</div>}
 
-              <button onClick={completeTransaction} disabled={processing || cart.length === 0}
-                className="w-full bg-primary text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed mt-1">
-                <CheckCircle2 className="h-4 w-4" />
-                {processing ? 'Memproses...' : 'SELESAIKAN TRANSAKSI'}
-              </button>
+              {/* Tombol aksi utama: Selesaikan + Belum Bayar */}
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button onClick={completeTransaction} disabled={processing || cart.length === 0}
+                  className="col-span-1 bg-primary text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {processing ? 'Memproses...' : 'SELESAIKAN'}
+                </button>
+                <button onClick={saveOpenBill} disabled={processing || cart.length === 0}
+                  className="col-span-1 bg-orange-500 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed">
+                  ⏳ Belum Bayar
+                </button>
+              </div>
             </div>
           </>
         )}
