@@ -54,15 +54,32 @@ export function Income() {
       // Ambil nama mekanik untuk baris yang punya transaction_id
       const trxIds = rows.filter(r => r.transaction_id).map(r => r.transaction_id as string)
       if (trxIds.length > 0) {
+        // Ambil mechanic_id dari transactions
         const { data: trxData } = await supabase
           .from('transactions')
-          .select('id, mechanics(name)')
+          .select('id, mechanic_id')
           .in('id', trxIds)
+
         if (trxData) {
-          const trxMap = Object.fromEntries(trxData.map((t: any) => [t.id, t.mechanics?.name ?? null]))
+          // Kumpulkan semua mechanic_id unik
+          const mechIds = [...new Set(trxData.map((t: any) => t.mechanic_id).filter(Boolean))]
+          let mechMap: Record<string, string> = {}
+
+          if (mechIds.length > 0) {
+            const { data: mechData } = await supabase
+              .from('mechanics')
+              .select('id, name')
+              .in('id', mechIds)
+            if (mechData) {
+              mechMap = Object.fromEntries(mechData.map((m: any) => [m.id, m.name]))
+            }
+          }
+
+          // Map mechanic_name ke setiap baris income
+          const trxMechMap = Object.fromEntries(trxData.map((t: any) => [t.id, t.mechanic_id ? (mechMap[t.mechanic_id] ?? null) : null]))
           rows.forEach(r => {
             if (r.transaction_id) {
-              r.mechanic_name = trxMap[r.transaction_id] ?? null
+              r.mechanic_name = trxMechMap[r.transaction_id] ?? null
             }
           })
         }
