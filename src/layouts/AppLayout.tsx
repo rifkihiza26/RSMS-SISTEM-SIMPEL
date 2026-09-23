@@ -134,15 +134,15 @@ export function AppLayout() {
     .slice(0, 5)
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 print:bg-white">
       {/* Desktop sidebar */}
-      <aside className="hidden sm:flex w-56 xl:w-64 flex-shrink-0 flex-col border-r bg-zinc-950 fixed inset-y-0 left-0 border-zinc-800 z-20">
+      <aside className="hidden sm:flex w-56 xl:w-64 flex-shrink-0 flex-col border-r bg-zinc-950 fixed inset-y-0 left-0 border-zinc-800 z-20 print:hidden">
         <SidebarContent />
       </aside>
 
       {/* Mobile sidebar overlay (geser dari kiri) */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 sm:hidden">
+        <div className="fixed inset-0 z-40 sm:hidden print:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl">
             <SidebarContent />
@@ -151,9 +151,9 @@ export function AppLayout() {
       )}
 
       {/* Main content */}
-      <div className="flex flex-col flex-1 sm:pl-56 xl:pl-64 min-w-0">
+      <div className="flex flex-col flex-1 sm:pl-56 xl:pl-64 min-w-0 print:pl-0">
         {/* Mobile topbar */}
-        <header className="sm:hidden sticky top-0 z-30 flex items-center justify-between bg-zinc-950 text-zinc-100 border-zinc-800 border-b px-4 h-14">
+        <header className="sm:hidden sticky top-0 z-30 flex items-center justify-between bg-zinc-950 text-zinc-100 border-zinc-800 border-b px-4 h-14 print:hidden">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="RSMS" className="h-7 w-7 rounded object-cover" />
             <span className="font-bold text-sm tracking-wide">RSMS</span>
@@ -167,12 +167,12 @@ export function AppLayout() {
         </header>
 
         {/* Page content — padding bawah lebih besar di mobile untuk bottom nav */}
-        <main className="flex-1 p-3 sm:p-6 overflow-auto pb-24 sm:pb-6">
+        <main className="flex-1 p-3 sm:p-6 overflow-auto pb-24 sm:pb-6 print:p-0 print:overflow-visible">
           <Outlet />
         </main>
 
         {/* Mobile bottom navigation */}
-        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 safe-bottom">
+        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 safe-bottom print:hidden">
           <div className="flex items-center justify-around px-1 py-1">
             {bottomNavItems.map(item => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
