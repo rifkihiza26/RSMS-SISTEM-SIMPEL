@@ -23,7 +23,8 @@ export function Services() {
   const { data: services = [], isLoading } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
-      const { data } = await supabase.from('services').select('*').order('sku')
+      const { data, error } = await supabase.from('services').select('*').order('service_code')
+      if (error) console.error("Error loading services:", error)
       return (data ?? []) as Service[]
     }
   })
