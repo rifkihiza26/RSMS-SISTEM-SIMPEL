@@ -165,7 +165,13 @@ export function Cashier() {
     } else {
       updateSession({ isSavedInDb: true, trxNumber });
       qc.invalidateQueries({ queryKey: ['cashier-products'] });
-      alert('Bon berhasil disimpan (Draft)! Stok otomatis terbooking.');
+      
+      // Auto-create new tab to prevent overwriting
+      const fresh = newSession(sessions.length + 1);
+      setSessions(prev => [...prev, fresh]);
+      setActiveSessionId(fresh.id);
+
+      alert('Bon (Belum Bayar) berhasil disimpan! Anda dipindahkan ke tab baru agar tidak menimpa bon sebelumnya.');
     }
   };
 
@@ -400,7 +406,9 @@ export function Cashier() {
 
   function resetSession() {
     const fresh = newSession(sessions.indexOf(activeSession) + 1)
-    setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...fresh, id: s.id, label: s.label } : s))
+    fresh.label = activeSession.label // Pertahankan label tab
+    setSessions(prev => prev.map(s => s.id === activeSession.id ? fresh : s))
+    setActiveSessionId(fresh.id)
   }
 
   function printReceipt() {
