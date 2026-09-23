@@ -86,7 +86,7 @@ export function Income() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['incomes'] })
       setModalOpen(false)
-      setForm({ category: '', amount: '', payment_method: 'CASH', description: '', date: new Date().toISOString().split('T')[0] })
+      setForm(prev => ({ category: '', amount: '', payment_method: 'CASH', description: '', date: prev.date }))
     },
     onError: () => setError('Gagal menyimpan data.')
   })
@@ -185,8 +185,8 @@ export function Income() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(i => (
-                  <tr key={i.id} className="border-b last:border-0 hover:bg-gray-50">
+                {filtered.map((i, index) => (
+                  <tr key={`${i.id}-${index}`} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDateShort(i.date)}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{i.category}</td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell max-w-xs truncate" title={i.description || ''}>{i.description || '-'}</td>

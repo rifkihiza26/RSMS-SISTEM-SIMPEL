@@ -116,7 +116,7 @@ export function Expenses() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] })
       setModalOpen(false)
-      setForm({ category: '', mechanic_id: '', payment_method: 'CASH', description: '', date: new Date().toISOString().split('T')[0] })
+      setForm(prev => ({ category: '', mechanic_id: '', payment_method: 'CASH', description: '', date: prev.date }))
       setCart([])
       setItemForm({ name: '', price: '', qty: '1' })
     },
@@ -235,8 +235,8 @@ export function Expenses() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(e => (
-                  <tr key={e.id} className="border-b last:border-0 hover:bg-gray-50">
+                {filtered.map((e, index) => (
+                  <tr key={`${e.id}-${index}`} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{e.expense_number}</td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDateShort(e.date)}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">
