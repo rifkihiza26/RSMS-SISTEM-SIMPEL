@@ -24,7 +24,7 @@ type Transaction = {
 }
 
 type Mechanic = { id: string; name: string }
-type EditForm = { date: string; payment_method: string; motor_type: string; mechanic_id: string }
+type EditForm = { date: string; payment_method: string; motor_type: string; mechanic_id: string; nota_type: 'KECIL' | 'BESAR' }
 
 type TrxItem = {
   id: string
@@ -53,7 +53,7 @@ export function Transactions() {
   const [payFilter, setPayFilter] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<EditForm>({ date: '', payment_method: 'CASH', motor_type: '', mechanic_id: '' })
+  const [editForm, setEditForm] = useState<EditForm>({ date: '', payment_method: 'CASH', motor_type: '', mechanic_id: '', nota_type: 'KECIL' })
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
 
@@ -107,6 +107,7 @@ export function Transactions() {
       payment_method: t.payment_method,
       motor_type: t.motor_type ?? '',
       mechanic_id: t.mechanic_id ?? '',
+      nota_type: (t.notes || '').includes('[BESAR]') ? 'BESAR' : 'KECIL',
     })
   }
 
@@ -122,9 +123,9 @@ export function Transactions() {
       mechanic ? `Mekanik: ${mechanic.name}` : '',
       editForm.motor_type ? `Motor: ${editForm.motor_type}` : ''
     ].filter(Boolean)
-    const existingTag = (trx.notes?.match(/^\[(BESAR|KECIL)\]/) || [])[0] || ''
+    const newTag = `[${editForm.nota_type}]`
     const baseNotes = noteParts.join(' | ')
-    const newNotes = existingTag ? `${existingTag} ${baseNotes}`.trim() : baseNotes || trx.notes || ''
+    const newNotes = `${newTag} ${baseNotes}`.trim()
 
     const targetTime = editForm.date + 'T12:00:00+07:00'
 
@@ -271,6 +272,23 @@ export function Transactions() {
                   <label className="text-sm font-medium text-gray-700">Jenis Motor</label>
                   <input type="text" value={editForm.motor_type} onChange={e => setEditForm(f => ({ ...f, motor_type: e.target.value }))}
                     placeholder="Vario 125, Beat, dll..." className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">Jenis Nota</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button"
+                      onClick={() => setEditForm(f => ({ ...f, nota_type: 'KECIL' }))}
+                      className={`py-2 rounded-lg text-sm font-bold border transition-colors flex items-center justify-center gap-1.5 ${editForm.nota_type === 'KECIL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      🔧 Nota Kecil
+                    </button>
+                    <button type="button"
+                      onClick={() => setEditForm(f => ({ ...f, nota_type: 'BESAR' }))}
+                      className={`py-2 rounded-lg text-sm font-bold border transition-colors flex items-center justify-center gap-1.5 ${editForm.nota_type === 'BESAR' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      🔩 Nota Besar
+                    </button>
+                  </div>
                 </div>
                 {editError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{editError}</div>}
                 <div className="flex gap-2 pt-2">
