@@ -67,7 +67,7 @@ export function Reports() {
     queryFn: async () => {
       const { data } = await supabase
         .from('transactions')
-        .select('total, payment_method, created_at')
+        .select('total, payment_method, notes, created_at')
         .gte('created_at', from + 'T00:00:00')
         .lte('created_at', to + 'T23:59:59')
         .in('status', ['COMPLETED', 'PAID'])
@@ -96,6 +96,14 @@ export function Reports() {
   // Payment method breakdown
   const byMethod = transactions.reduce((acc, t) => {
     acc[t.payment_method] = (acc[t.payment_method] || 0) + t.total
+    return acc
+  }, {} as Record<string, number>)
+
+  // Nota type breakdown
+  const byNotaType = transactions.reduce((acc, t) => {
+    const isBesar = (t.notes || '').includes('[BESAR]')
+    const type = isBesar ? 'Nota Besar' : 'Nota Kecil'
+    acc[type] = (acc[type] || 0) + t.total
     return acc
   }, {} as Record<string, number>)
 
@@ -212,7 +220,7 @@ export function Reports() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Income Breakdown */}
             <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b bg-gray-50">
@@ -283,6 +291,35 @@ export function Reports() {
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full ${colors[method] ?? 'bg-gray-400'}`}
+                          style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Nota Type Breakdown */}
+            <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b bg-gray-50">
+                <h2 className="text-sm font-semibold text-gray-700">Penjualan per Jenis Nota</h2>
+              </div>
+              <div className="p-4 space-y-3">
+                {Object.keys(byNotaType).length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">Tidak ada transaksi</p>
+                ) : Object.entries(byNotaType).sort((a, b) => b[1] - a[1]).map(([type, amount]) => {
+                  const colors: Record<string, string> = { 'Nota Besar': 'bg-orange-500', 'Nota Kecil': 'bg-blue-500' }
+                  const totalTrxValue = transactions.reduce((s, t) => s + t.total, 0)
+                  return (
+                    <div key={type}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs text-gray-600">{type}</span>
+                        <span className="text-xs font-semibold text-gray-900">{formatRupiah(amount)}</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${colors[type] ?? 'bg-gray-400'}`}
                           style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }}
                         />
                       </div>

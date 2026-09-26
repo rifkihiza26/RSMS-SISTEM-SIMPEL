@@ -122,7 +122,9 @@ export function Transactions() {
       mechanic ? `Mekanik: ${mechanic.name}` : '',
       editForm.motor_type ? `Motor: ${editForm.motor_type}` : ''
     ].filter(Boolean)
-    const newNotes = noteParts.join(' | ') || trx.notes || ''
+    const existingTag = (trx.notes?.match(/^\[(BESAR|KECIL)\]/) || [])[0] || ''
+    const baseNotes = noteParts.join(' | ')
+    const newNotes = existingTag ? `${existingTag} ${baseNotes}`.trim() : baseNotes || trx.notes || ''
 
     const targetTime = editForm.date + 'T12:00:00+07:00'
 
@@ -197,20 +199,29 @@ export function Transactions() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(t => (
+                {filtered.map(t => {
+                  const isBesar = (t.notes || '').includes('[BESAR]')
+                  const notaTypeLabel = isBesar ? 'BESAR' : 'KECIL'
+                  const notaColor = isBesar ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                  return (
                   <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{t.transaction_number}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-mono text-xs text-gray-700">{t.transaction_number}</div>
+                      <div className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${notaColor}`}>
+                        NOTA {notaTypeLabel}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{formatDateShort(t.created_at)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatRupiah(t.total)}</td>
                     <td className="px-4 py-3 text-center"><Badge method={t.payment_method} /></td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{t.profiles?.full_name ?? '-'}</td>
-                    <td className="px-4 py-3 text-right flex justify-end gap-1">
+                    <td className="px-4 py-3 text-right flex justify-end gap-1 items-center h-full">
                       <button onClick={() => setDetailId(t.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Detail"><Eye className="h-4 w-4" /></button>
                       {(isOwner || isAdmin) && <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50" title="Edit"><Edit2 className="w-4 h-4" /></button>}
                       {(isOwner || isAdmin) && <button onClick={() => { if(confirm('Yakin hapus transaksi beserta itemnya? Pemasukan terkait akan terhapus juga otomatis jika ada cascade, tapi stok tidak kembali otomatis.')) deleteMutation.mutate(t.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

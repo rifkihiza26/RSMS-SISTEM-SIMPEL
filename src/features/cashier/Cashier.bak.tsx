@@ -42,22 +42,18 @@ type CompletedTransaction = {
 // --- Per-session state ---
 type CartSession = {
   id: string
-  name?: string
-  label?: string
+  label: string
   cart: CartItem[]
-  motorType: string
-  selectedMechanicId: string
-  txError: string
-  txDate: string
   discount: number
-  paymentMethod: 'CASH' | 'TRANSFER' | 'QRIS'
+  paymentMethod: 'CASH' | 'QRIS' | 'TRANSFER'
   paidAmount: number
-  showWaInput?: boolean
-  waCustomerPhone?: string
-  completed?: CompletedTransaction | null
-  isSavedInDb?: boolean
-  trxNumber?: string
-  notaType?: 'KECIL' | 'BESAR'
+  selectedMechanicId: string
+  motorType: string
+  txDate: string
+  txError: string
+  completed: CompletedTransaction | null
+  showWaInput: boolean
+  waCustomerPhone: string
 }
 
 function newSession(index: number): CartSession {
@@ -75,7 +71,6 @@ function newSession(index: number): CartSession {
     completed: null,
     showWaInput: false,
     waCustomerPhone: '',
-    notaType: 'KECIL',
   }
 }
 
@@ -88,7 +83,7 @@ export function Cashier() {
   const [tab, setTab] = useState<'PRODUCT' | 'SERVICE'>('PRODUCT')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
-  const [manualForm, setManualForm] = useState([{ id: crypto.randomUUID(), name: '', type: 'Jasa', price: '', qty: '1' }])
+  const [manualForm, setManualForm] = useState({ name: '', type: 'Jasa', price: '', qty: '1' })
   const [manualError, setManualError] = useState('')
   const [stockWarning, setStockWarning] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -129,8 +124,8 @@ export function Cashier() {
   // Auto-save sessions to localStorage whenever they change
   useEffect(() => {
     try {
-      // Jangan simpan sesi yang sudah selesai agar tidak ter-load ulang tanpa UUID baru
-      const toSave = sessions.filter(s => !s.completed)
+      // Only persist non-completed sessions
+      const toSave = sessions.map(s => s.completed ? { ...s, completed: null } : s)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
       localStorage.setItem(ACTIVE_KEY, activeSessionId)
     } catch {}
@@ -138,60 +133,6 @@ export function Cashier() {
 
   // Init: make sure activeSessionId matches first session
   const activeSession = sessions.find(s => s.id === activeSessionId) ?? sessions[0]
-
-  const saveOpenBill = async () => {
-    const session = activeSession;
-    if (!session || session.cart.length === 0) return alert('Keranjang kosong!');
-    
-    setProcessing(true);
-    const cartJson = session.cart.map(i => ({
-      item_type: i.type, product_id: i.product_id ?? null, service_id: i.service_id ?? null,
-      item_name: i.name, sku: i.sku ?? null, quantity: i.qty, unit_price: i.price, subtotal: i.qty * i.price,
-      stock_tracked: i.type === 'PRODUCT', is_service: i.is_service
-    }));
-
-    const trxNumber = session.trxNumber || generateTransactionNumber();
-
-    const { error } = await supabase.rpc('sync_open_bill_v2', {
-      p_tx_id: session.id,
-      p_tx_number: trxNumber,
-      p_mechanic_id: selectedMechanicId || null,
-      p_motor_type: motorType || '',
-      p_new_cart: cartJson,
-      p_created_by: user?.id
-    });
-
-    setProcessing(false);
-    if (error) {
-      alert('Gagal menyimpan bon: ' + error.message);
-    } else {
-      updateSession({ isSavedInDb: true, trxNumber });
-      qc.invalidateQueries({ queryKey: ['cashier-products'] });
-      
-      // Auto-create new tab to prevent overwriting
-      const fresh = newSession(sessions.length + 1);
-      setSessions(prev => [...prev, fresh]);
-      setActiveSessionId(fresh.id);
-
-      alert('Bon (Belum Bayar) berhasil disimpan! Anda dipindahkan ke tab baru agar tidak menimpa bon sebelumnya.');
-    }
-  };
-
-  const cancelOpenBill = async () => {
-    const session = activeSession;
-    if (!session) return;
-    
-    if (confirm('Batalkan transaksi ini? Stok (jika sudah tersimpan) akan dikembalikan.')) {
-      if (session.isSavedInDb) {
-        setProcessing(true);
-        await supabase.rpc('cancel_open_bill', { p_tx_id: session.id });
-        setProcessing(false);
-        qc.invalidateQueries({ queryKey: ['cashier-products'] });
-      }
-      removeSession(session.id);
-    }
-  };
-
 
   function updateSession(patch: Partial<CartSession>) {
     setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...s, ...patch } : s))
@@ -234,7 +175,7 @@ export function Cashier() {
     return s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
   })
 
-  const { cart, discount, paymentMethod, paidAmount, selectedMechanicId, motorType, txDate, txError, completed, showWaInput, waCustomerPhone, notaType } = activeSession
+  const { cart, discount, paymentMethod, paidAmount, selectedMechanicId, motorType, txDate, txError, completed, showWaInput, waCustomerPhone } = activeSession
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const total = Math.max(0, subtotal - discount)
   const change = paymentMethod === 'CASH' ? Math.max(0, paidAmount - total) : 0
@@ -303,81 +244,50 @@ export function Cashier() {
   function removeItem(id: string) { updateSession({ cart: cart.filter(i => i.id !== id) }) }
 
   function addManual(e: React.FormEvent) {
-    e.preventDefault(); setManualError('');
-    
-    const newItems = [];
-    for (const item of manualForm) {
-      if (!item.name.trim()) return setManualError('Ada item yang belum memiliki nama.');
-      const price = parseFloat(item.price);
-      const qty = item.type === 'Jasa' ? 1 : parseInt(item.qty);
-      if (!price || price <= 0) return setManualError('Ada item dengan harga tidak valid.');
-      if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.');
-      
-      newItems.push({
-        id: crypto.randomUUID(),
-        name: item.name.trim(),
-        type: 'MANUAL' as const,
-        price,
-        qty,
-        is_service: item.type === 'Jasa'
-      });
-    }
-
-    updateSession({ cart: [...cart, ...newItems] });
-    setManualForm([{ id: crypto.randomUUID(), name: '', type: 'Jasa', price: '', qty: '1' }]);
-    setManualOpen(false);
-  }
-  
-  function addManualRow() {
-    setManualForm([...manualForm, { id: crypto.randomUUID(), name: '', type: 'Jasa', price: '', qty: '1' }]);
-  }
-  
-  function removeManualRow(id: string) {
-    if (manualForm.length === 1) return;
-    setManualForm(manualForm.filter(item => item.id !== id));
-  }
-  
-  function updateManualRow(id: string, field: string, value: string) {
-    setManualForm(manualForm.map(item => item.id === id ? { ...item, [field]: value } : item));
+    e.preventDefault(); setManualError('')
+    if (!manualForm.name.trim()) return setManualError('Nama item wajib diisi.')
+    const price = parseFloat(manualForm.price)
+    const qty = manualForm.type === 'Jasa' ? 1 : parseInt(manualForm.qty)
+    if (!price || price <= 0) return setManualError('Harga harus lebih dari 0.')
+    if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.')
+    updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: manualForm.name.trim(), type: 'MANUAL', price, qty, is_service: manualForm.type === 'Jasa' }] })
+    setManualForm({ name: '', type: 'Jasa', price: '', qty: '1' })
+    setManualOpen(false)
   }
 
   async function completeTransaction() {
     if (cart.length === 0) return updateSession({ txError: 'Keranjang masih kosong.' })
     if (paymentMethod === 'CASH' && paidAmount < total) return updateSession({ txError: 'Uang yang dibayarkan kurang dari total belanja.' })
     updateSession({ txError: '' }); setProcessing(true)
-    
-    const session = activeSession
-    const trxNumber = session.trxNumber || generateTransactionNumber()
+    const trxNumber = generateTransactionNumber()
     const paid = paymentMethod === 'CASH' ? paidAmount : total
-    
-    const cartJson = cart.map(i => ({
-      item_type: i.type, product_id: i.product_id ?? null, service_id: i.service_id ?? null,
-      item_name: i.name, sku: i.sku ?? null, quantity: i.qty, unit_price: i.price, subtotal: i.price * i.qty,
-      stock_tracked: i.type === 'PRODUCT', is_service: i.is_service,
+    const items = cart.map(i => ({
+      item_type: i.type,
+      product_id: i.product_id ?? null,
+      service_id: i.service_id ?? null,
+      item_name: i.name,
+      sku: i.sku ?? null,
+      quantity: i.qty,
+      unit_price: i.price,
+      subtotal: i.price * i.qty,
+      stock_tracked: i.type === 'PRODUCT',
+      is_service: i.is_service,
     }))
-
-    const { error: syncErr } = await supabase.rpc('sync_open_bill_v2', {
-      p_tx_id: session.id, p_tx_number: trxNumber, p_mechanic_id: selectedMechanicId || null,
-      p_motor_type: motorType || '', p_new_cart: cartJson, p_created_by: user?.id
-    })
-
-    if (syncErr) {
-      setProcessing(false); return updateSession({ txError: 'Gagal sinkronisasi: ' + syncErr.message })
-    }
-
-    const mechanicName = mechanics.find(m => m.id === selectedMechanicId)?.name || ''
-    const notes = `[${notaType ?? 'KECIL'}] ` + [mechanicName ? `Mekanik: ${mechanicName}` : '', motorType ? `Motor: ${motorType}` : ''].filter(Boolean).join(' | ')
-
-    const { error } = await supabase.rpc('pay_open_bill', {
-      p_tx_id: session.id,
+    const { error } = await supabase.rpc('process_transaction', {
+      p_transaction_number: trxNumber,
       p_subtotal: subtotal,
       p_discount: discount,
       p_total: total,
       p_payment_method: paymentMethod,
       p_paid_amount: paid,
       p_change_amount: paymentMethod === 'CASH' ? paid - total : 0,
-      p_notes: notes,
-      p_items: cartJson
+      p_cash_session_id: null,
+      p_notes: [
+        selectedMechanicId ? `Mekanik: ${mechanics.find(m => m.id === selectedMechanicId)?.name ?? ''}` : '',
+        motorType ? `Motor: ${motorType}` : ''
+      ].filter(Boolean).join(' | ') || '',
+      p_created_by: user?.id ?? null,
+      p_items: items,
     })
 
     if (!error && txDate !== new Date().toISOString().split('T')[0]) {
@@ -399,7 +309,6 @@ export function Cashier() {
     }
     qc.invalidateQueries({ queryKey: ['cashier-products'] })
     qc.invalidateQueries({ queryKey: ['transactions'] })
-    qc.invalidateQueries({ queryKey: ['dashboard'] })
     const mechName = mechanics.find(m => m.id === selectedMechanicId)?.name ?? '-'
     updateSession({
       completed: { transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName, motor_type: motorType }
@@ -408,9 +317,7 @@ export function Cashier() {
 
   function resetSession() {
     const fresh = newSession(sessions.indexOf(activeSession) + 1)
-    fresh.label = activeSession.label // Pertahankan label tab
-    setSessions(prev => prev.map(s => s.id === activeSession.id ? fresh : s))
-    setActiveSessionId(fresh.id)
+    setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...fresh, id: s.id, label: s.label } : s))
   }
 
   function printReceipt() {
@@ -452,7 +359,7 @@ export function Cashier() {
   }
 
   // --- Render completed view (inside cart panel) ---
-  function renderCompleted(comp: CompletedTransaction, nota: 'KECIL' | 'BESAR' = 'KECIL') {
+  function renderCompleted(comp: CompletedTransaction) {
     const now = new Date()
     const dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
@@ -485,9 +392,9 @@ export function Cashier() {
             <div className="flex gap-2">
               <button onClick={() => updateSession({ showWaInput: false })} className="flex-1 bg-white border border-gray-300 text-gray-700 rounded-lg py-2 text-xs font-medium hover:bg-gray-100">Batal</button>
               <button onClick={async () => {
-                if (!(waCustomerPhone || "").trim()) return alert('Masukkan nomor WA terlebih dahulu!')
+                if (!waCustomerPhone.trim()) return alert('Masukkan nomor WA terlebih dahulu!')
                 await downloadPDF('receipt-pdf', `Struk-${comp.transaction_number}`)
-                shareViaWhatsApp(waCustomerPhone || "", `Halo! Berikut struk transaksi ${comp.transaction_number} dari Rakyat Sinting Matic Shop 🏍️\nTotal: ${formatRupiah(comp.total)}\nMetode: ${comp.payment_method}${comp.mechanic_name !== '-' ? `\nMekanik: ${comp.mechanic_name}` : ''}\n\nTerima kasih sudah mempercayakan kendaraan Anda kepada kami! 🙏`)
+                shareViaWhatsApp(waCustomerPhone, `Halo! Berikut struk transaksi ${comp.transaction_number} dari Rakyat Sinting Matic Shop 🏍️\nTotal: ${formatRupiah(comp.total)}\nMetode: ${comp.payment_method}${comp.mechanic_name !== '-' ? `\nMekanik: ${comp.mechanic_name}` : ''}\n\nTerima kasih sudah mempercayakan kendaraan Anda kepada kami! 🙏`)
                 updateSession({ showWaInput: false })
               }} className="flex-1 bg-green-600 text-white rounded-lg py-2 text-xs font-medium hover:bg-green-700">Kirim WA</button>
             </div>
@@ -501,136 +408,51 @@ export function Cashier() {
           Transaksi Baru (Tab Ini)
         </button>
 
-        {/* Hidden receipt — Nota Kecil (thermal 58mm) */}
-        {nota === 'KECIL' && (
-          <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
-            <div style={{textAlign:'center'}}>
-              <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
-              <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
-              <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
-              <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>
-              <div style={{fontSize:'11px', fontWeight:'bold', marginTop:'4px', letterSpacing:'1px'}}>— NOTA KECIL —</div>
-            </div>
-            <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{comp.transaction_number}</span></div>
-            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{dateStr}</span></div>
-            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{timeStr}</span></div>
-            {comp.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{comp.motor_type}</span></div>}
-            {comp.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{comp.mechanic_name}</span></div>}
-            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-            <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
-            {comp.items.map(i => (
-              <div key={i.id} style={{marginBottom:'5px'}}>
-                <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.name}</div>
-                <div style={{display:'flex', justifyContent:'space-between'}}>
-                  <span style={{fontSize:'11px'}}>{i.qty} × {formatRupiah(i.price)}</span>
-                  <span style={{fontSize:'11px', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</span>
-                </div>
-              </div>
-            ))}
-            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(comp.subtotal)}</span></div>
-            {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(comp.discount)}</span></div>}
-            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(comp.total)}</span></div>
-            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
-            {comp.payment_method === 'CASH' && (
-              <div style={{width:'100%'}}>
-                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
-                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
-              </div>
-            )}
-            <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-            <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
-              <div>Terima kasih telah mempercayakan</div>
-              <div>kendaraan Anda kepada kami!</div>
-              <div style={{marginTop:'6px', fontWeight:'bold'}}>— Rakyat Sinting Matic Shop —</div>
-            </div>
+        {/* Hidden receipt */}
+        <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
+          <div style={{textAlign:'center'}}>
+            <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
+            <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
+            <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
+            <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>
           </div>
-        )}
-
-        {/* Hidden receipt — Nota Besar (A5 formal) */}
-        {nota === 'BESAR' && (
-          <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'20px', maxWidth:'148mm', minWidth:'140mm', fontFamily:'Arial, sans-serif', fontSize:'12px', color:'black'}}>
-            {/* Kop Surat */}
-            <div style={{display:'flex', alignItems:'center', borderBottom:'3px solid #000', paddingBottom:'10px', marginBottom:'10px', gap:'14px'}}>
-              <img src="/logo-struk.jpg" alt="Logo" style={{width:'60px', height:'60px', objectFit:'contain'}} />
-              <div>
-                <div style={{fontWeight:'bold', fontSize:'16px', textTransform:'uppercase'}}>{SHOP_NAME}</div>
-                <div style={{fontSize:'10px', color:'#444', marginTop:'3px', lineHeight:'1.6'}}>{SHOP_ADDRESS}</div>
-                <div style={{fontSize:'10px', color:'#444'}}>WA / Telp: {SHOP_PHONE}</div>
+          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{comp.transaction_number}</span></div>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{dateStr}</span></div>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{timeStr}</span></div>
+          {comp.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{comp.motor_type}</span></div>}
+          {comp.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{comp.mechanic_name}</span></div>}
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+          <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
+          {comp.items.map(i => (
+            <div key={i.id} style={{marginBottom:'5px'}}>
+              <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.name}</div>
+              <div style={{display:'flex', justifyContent:'space-between'}}>
+                <span style={{fontSize:'11px'}}>{i.qty} × {formatRupiah(i.price)}</span>
+                <span style={{fontSize:'11px', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</span>
               </div>
             </div>
-
-            {/* Judul Nota */}
-            <div style={{textAlign:'center', margin:'8px 0 12px'}}>
-              <div style={{fontWeight:'bold', fontSize:'15px', letterSpacing:'2px', textTransform:'uppercase', border:'2px solid #000', display:'inline-block', padding:'3px 20px'}}>NOTA SERVIS BESAR</div>
+          ))}
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(comp.subtotal)}</span></div>
+          {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(comp.discount)}</span></div>}
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(comp.total)}</span></div>
+          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
+          {comp.payment_method === 'CASH' && (
+            <div style={{width:'100%'}}>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
             </div>
-
-            {/* Info Transaksi */}
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 20px', marginBottom:'12px', fontSize:'12px'}}>
-              <div><span style={{fontWeight:'bold'}}>No. Nota:</span> {comp.transaction_number}</div>
-              <div><span style={{fontWeight:'bold'}}>Tanggal:</span> {dateStr}</div>
-              <div><span style={{fontWeight:'bold'}}>Jam:</span> {timeStr}</div>
-              <div><span style={{fontWeight:'bold'}}>Mekanik:</span> {comp.mechanic_name !== '-' ? comp.mechanic_name : '-'}</div>
-              {comp.motor_type && <div style={{gridColumn:'span 2'}}><span style={{fontWeight:'bold'}}>Jenis Motor / No. Polisi:</span> {comp.motor_type}</div>}
-            </div>
-
-            {/* Tabel Item */}
-            <table style={{width:'100%', borderCollapse:'collapse', marginBottom:'10px', fontSize:'12px'}}>
-              <thead>
-                <tr style={{background:'#000', color:'#fff'}}>
-                  <th style={{padding:'5px 8px', textAlign:'left', width:'5%'}}>No</th>
-                  <th style={{padding:'5px 8px', textAlign:'left'}}>Nama Item / Jasa</th>
-                  <th style={{padding:'5px 8px', textAlign:'center', width:'10%'}}>Jenis</th>
-                  <th style={{padding:'5px 8px', textAlign:'center', width:'8%'}}>Qty</th>
-                  <th style={{padding:'5px 8px', textAlign:'right', width:'18%'}}>Harga Satuan</th>
-                  <th style={{padding:'5px 8px', textAlign:'right', width:'18%'}}>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comp.items.map((i, idx) => (
-                  <tr key={i.id} style={{borderBottom:'1px solid #ccc', background: idx % 2 === 0 ? '#f9f9f9' : '#fff'}}>
-                    <td style={{padding:'5px 8px'}}>{idx + 1}</td>
-                    <td style={{padding:'5px 8px', fontWeight:'bold'}}>{i.name}</td>
-                    <td style={{padding:'5px 8px', textAlign:'center', fontSize:'10px'}}>{i.is_service ? 'JASA' : 'PART'}</td>
-                    <td style={{padding:'5px 8px', textAlign:'center'}}>{i.qty}</td>
-                    <td style={{padding:'5px 8px', textAlign:'right'}}>{formatRupiah(i.price)}</td>
-                    <td style={{padding:'5px 8px', textAlign:'right', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Ringkasan Pembayaran */}
-            <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'12px'}}>
-              <div style={{width:'220px', fontSize:'12px'}}>
-                <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Subtotal:</span><span>{formatRupiah(comp.subtotal)}</span></div>
-                {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0', color:'#c00'}}><span>Diskon:</span><span>-{formatRupiah(comp.discount)}</span></div>}
-                <div style={{display:'flex', justifyContent:'space-between', padding:'5px 0', borderTop:'2px solid #000', fontWeight:'bold', fontSize:'14px'}}><span>TOTAL:</span><span>{formatRupiah(comp.total)}</span></div>
-                <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Metode:</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
-                {comp.payment_method === 'CASH' && <>
-                  <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Dibayar:</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
-                  <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Kembalian:</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
-                </>}
-              </div>
-            </div>
-
-            {/* Tanda Tangan */}
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginTop:'20px', fontSize:'11px'}}>
-              <div style={{textAlign:'center'}}>
-                <div style={{marginBottom:'40px'}}>Pelanggan,</div>
-                <div style={{borderTop:'1px solid #000', paddingTop:'4px'}}>( _________________________ )</div>
-              </div>
-              <div style={{textAlign:'center'}}>
-                <div style={{marginBottom:'2px'}}>Bengkel,</div>
-                <div style={{marginBottom:'32px', fontWeight:'bold', fontSize:'10px'}}>{SHOP_NAME}</div>
-                <div style={{borderTop:'1px solid #000', paddingTop:'4px'}}>( _________________________ )</div>
-              </div>
-            </div>
+          )}
+          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
+          <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
+            <div>Terima kasih telah mempercayakan</div>
+            <div>kendaraan Anda kepada kami!</div>
+            <div style={{marginTop:'6px', fontWeight:'bold'}}>— Rakyat Sinting Matic Shop —</div>
           </div>
-        )}
+        </div>
       </div>
     )
   }
@@ -750,28 +572,7 @@ export function Cashier() {
           {cart.length > 0 && !completed && <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
         </div>
 
-        {/* Nota Type Toggle */}
-        {!completed && (
-          <div className="px-4 py-2 border-b bg-gray-50">
-            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1.5">Jenis Nota</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                onClick={() => updateSession({ notaType: 'KECIL' })}
-                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${(notaType ?? 'KECIL') === 'KECIL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-              >
-                🔧 Nota Kecil
-              </button>
-              <button
-                onClick={() => updateSession({ notaType: 'BESAR' })}
-                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${notaType === 'BESAR' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-              >
-                🔩 Nota Besar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {completed ? renderCompleted(completed, notaType ?? 'KECIL') : (
+        {completed ? renderCompleted(completed) : (
           <>
             <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-[200px] md:min-h-0">
               {cart.length === 0 ? (
@@ -805,14 +606,6 @@ export function Cashier() {
               ))}
             </div>
 
-                        {/* Open Bill Action Buttons */}
-            <div className="px-4 pt-2 pb-1 flex justify-end">
-              <button onClick={cancelOpenBill} disabled={processing}
-                className="py-1.5 px-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg text-xs flex items-center gap-1 transition-colors">
-                ✕ Batalkan Sesi
-              </button>
-            </div>
-            
             <div className="px-4 py-3 border-t space-y-2">
               {/* Date input */}
               <div className="flex items-center justify-between text-sm">
@@ -874,18 +667,11 @@ export function Cashier() {
 
               {txError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">{txError}</div>}
 
-              {/* Tombol aksi utama: Selesaikan + Belum Bayar */}
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                <button onClick={completeTransaction} disabled={processing || cart.length === 0}
-                  className="col-span-1 bg-primary text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {processing ? 'Memproses...' : 'SELESAIKAN'}
-                </button>
-                <button onClick={saveOpenBill} disabled={processing || cart.length === 0}
-                  className="col-span-1 bg-orange-500 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed">
-                  ⏳ Belum Bayar
-                </button>
-              </div>
+              <button onClick={completeTransaction} disabled={processing || cart.length === 0}
+                className="w-full bg-primary text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed mt-1">
+                <CheckCircle2 className="h-4 w-4" />
+                {processing ? 'Memproses...' : 'SELESAIKAN TRANSAKSI'}
+              </button>
             </div>
           </>
         )}
@@ -893,74 +679,54 @@ export function Cashier() {
 
       {/* Manual Input Modal */}
       {manualOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b">
-              <h2 className="font-semibold text-gray-900 text-sm sm:text-base">Input Item Manual</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="font-semibold text-gray-900">Input Item Manual</h2>
               <button onClick={() => setManualOpen(false)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5" /></button>
             </div>
-
-            <div className="p-3 sm:p-5 overflow-y-auto flex-1">
-              {manualError && <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{manualError}</div>}
-
-              <div className="space-y-3">
-                {manualForm.map((item, index) => (
-                  <div key={item.id} className="p-3 sm:p-4 border rounded-xl bg-gray-50/50 relative">
-                    {manualForm.length > 1 && (
-                      <button onClick={() => removeManualRow(item.id)} className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1.5 rounded-full hover:bg-red-200 border-2 border-white z-10">
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                      <div className="flex-1 min-w-0">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Nama Item {index + 1}</label>
-                        <input value={item.name} onChange={e => updateManualRow(item.id, 'name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="Nama barang / jasa" />
-                      </div>
-                      <div className="flex gap-2 sm:gap-3">
-                        <div className="w-24 flex-shrink-0">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
-                          <select value={item.type} onChange={e => updateManualRow(item.id, 'type', e.target.value)} className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
-                            <option value="Jasa">Jasa</option>
-                            <option value="Barang">Barang</option>
-                          </select>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Harga (Rp)</label>
-                          <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateManualRow(item.id, 'price', parseCurrencyInput(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="0" />
-                        </div>
-                        {item.type === 'Barang' && (
-                          <div className="w-16 sm:w-20 flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
-                            <input type="number" min="1" value={item.qty} onChange={e => updateManualRow(item.id, 'qty', e.target.value)} className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 text-center" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
+            <form onSubmit={addManual} className="p-5 space-y-4">
+              {manualError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2.5 text-sm">{manualError}</div>}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nama Item <span className="text-red-500">*</span></label>
+                <input value={manualForm.name} onChange={e => setManualForm(f => ({ ...f, name: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="Nama barang atau jasa" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Jenis</label>
+                <select value={manualForm.type} onChange={e => setManualForm(f => ({ ...f, type: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
+                  <option value="Jasa">Jasa</option>
+                  <option value="Barang">Barang</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  {manualForm.type === 'Barang' ? '⚠️ Item manual tidak terhubung dengan stok produk.' : 'Item manual tidak terhubung dengan daftar jasa.'}
+                </p>
+              </div>
+              <div className={`grid ${manualForm.type === 'Barang' ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Harga (Rp) <span className="text-red-500">*</span></label>
+                  <input type="text" value={formatCurrencyInput(manualForm.price)} onChange={e => setManualForm(f => ({ ...f, price: parseCurrencyInput(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                {manualForm.type === 'Barang' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Qty</label>
+                    <input type="number" min="1" value={manualForm.qty} onChange={e => setManualForm(f => ({ ...f, qty: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
                   </div>
-                ))}
+                )}
               </div>
-
-              <button onClick={addManualRow} className="mt-3 flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors">
-                <Plus className="h-4 w-4" /> Tambah Baris
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-between sm:items-center p-3 sm:p-5 border-t bg-gray-50 rounded-b-xl">
-              <div className="text-sm text-center sm:text-left">
-                <span className="text-gray-500">Total: </span>
-                <span className="font-bold text-gray-900">
-                  {formatRupiah(manualForm.reduce((sum, item) => sum + ((parseFloat(item.price) || 0) * (item.type === 'Jasa' ? 1 : parseInt(item.qty) || 0)), 0))}
-                </span>
+              {manualForm.price && manualForm.qty && (
+                <div className="bg-gray-50 rounded-lg px-4 py-2.5 text-sm flex justify-between">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="font-bold">{formatRupiah((parseFloat(manualForm.price) || 0) * (parseInt(manualForm.qty) || 0))}</span>
+                </div>
+              )}
+              <div className="flex gap-3 justify-end pt-2 border-t">
+                <button type="button" onClick={() => setManualOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 border rounded-lg hover:bg-gray-50">Batal</button>
+                <button type="submit" className="px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90">Tambahkan</button>
               </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setManualOpen(false)} className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 border rounded-lg hover:bg-gray-100 bg-white">Batal</button>
-                <button onClick={addManual} className="flex-1 sm:flex-none px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90">Tambahkan Semua</button>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
-
     </div>
   )
 }
