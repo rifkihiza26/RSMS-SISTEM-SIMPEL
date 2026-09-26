@@ -94,7 +94,7 @@ export function Transactions() {
   const { data: mechanics = [] } = useQuery({
     queryKey: ['mechanics'],
     queryFn: async () => {
-      const { data } = await supabase.from('mechanics').select('id, name').eq('active', true).order('name')
+      const { data } = await supabase.from('mechanics').select('id, name').order('name')
       return (data ?? []) as Mechanic[]
     }
   })
