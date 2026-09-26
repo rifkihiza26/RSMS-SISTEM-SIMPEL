@@ -227,6 +227,7 @@ export function Income() {
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Nominal</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Sumber</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Metode</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600"></th>
                 </tr>
               </thead>
               <tbody>
@@ -236,14 +237,25 @@ export function Income() {
                     <td className="px-4 py-3 font-medium text-gray-900">{i.category}</td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell max-w-xs truncate" title={i.description || ''}>{i.description || '-'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-green-600">{formatRupiah(i.amount)}</td>
-                    <td className="px-4 py-3 text-right">{(isOwner || isAdmin) && <button onClick={() => { if(confirm('Yakin hapus data ini?')) deleteMutation.mutate(i.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash className="w-4 h-4" /></button>}</td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${i.transaction_id ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                         {i.transaction_id ? 'KASIR' : 'MANUAL'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">{i.payment_method}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        i.payment_method === 'CASH' ? 'bg-green-100 text-green-700' : 
+                        i.payment_method === 'QRIS' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {i.payment_method}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {(isOwner || isAdmin) && (
+                        <button onClick={() => { if(confirm('Yakin hapus data ini?')) deleteMutation.mutate(i.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg inline-flex" title="Hapus">
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
