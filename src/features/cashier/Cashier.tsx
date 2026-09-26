@@ -57,6 +57,7 @@ type CartSession = {
   completed?: CompletedTransaction | null
   isSavedInDb?: boolean
   trxNumber?: string
+  notaType?: 'KECIL' | 'BESAR'
 }
 
 function newSession(index: number): CartSession {
@@ -74,6 +75,7 @@ function newSession(index: number): CartSession {
     completed: null,
     showWaInput: false,
     waCustomerPhone: '',
+    notaType: 'KECIL',
   }
 }
 
@@ -232,7 +234,7 @@ export function Cashier() {
     return s.name.toLowerCase().includes(search.toLowerCase()) || s.service_code.toLowerCase().includes(search.toLowerCase())
   })
 
-  const { cart, discount, paymentMethod, paidAmount, selectedMechanicId, motorType, txDate, txError, completed, showWaInput, waCustomerPhone } = activeSession
+  const { cart, discount, paymentMethod, paidAmount, selectedMechanicId, motorType, txDate, txError, completed, showWaInput, waCustomerPhone, notaType } = activeSession
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const total = Math.max(0, subtotal - discount)
   const change = paymentMethod === 'CASH' ? Math.max(0, paidAmount - total) : 0
@@ -450,7 +452,7 @@ export function Cashier() {
   }
 
   // --- Render completed view (inside cart panel) ---
-  function renderCompleted(comp: CompletedTransaction) {
+  function renderCompleted(comp: CompletedTransaction, nota: 'KECIL' | 'BESAR' = 'KECIL') {
     const now = new Date()
     const dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
@@ -499,51 +501,136 @@ export function Cashier() {
           Transaksi Baru (Tab Ini)
         </button>
 
-        {/* Hidden receipt */}
-        <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
-          <div style={{textAlign:'center'}}>
-            <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
-            <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
-            <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
-            <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>
+        {/* Hidden receipt — Nota Kecil (thermal 58mm) */}
+        {nota === 'KECIL' && (
+          <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'4px', maxWidth:'58mm', fontFamily:'monospace', fontSize:'12px', color:'black'}}>
+            <div style={{textAlign:'center'}}>
+              <img src="/logo-struk.jpg" alt="Logo" style={{width:'140px', height:'auto', objectFit:'contain', margin:'0 auto 6px', display:'block'}} />
+              <div style={{fontWeight:'bold', fontSize:'13px'}}>{SHOP_NAME}</div>
+              <div style={{fontSize:'10px', marginTop:'3px', lineHeight:'1.5'}}>{SHOP_ADDRESS}</div>
+              <div style={{fontSize:'10px'}}>WA / Telp: {SHOP_PHONE}</div>
+              <div style={{fontSize:'11px', fontWeight:'bold', marginTop:'4px', letterSpacing:'1px'}}>— NOTA KECIL —</div>
+            </div>
+            <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{comp.transaction_number}</span></div>
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{dateStr}</span></div>
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{timeStr}</span></div>
+            {comp.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{comp.motor_type}</span></div>}
+            {comp.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{comp.mechanic_name}</span></div>}
+            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+            <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
+            {comp.items.map(i => (
+              <div key={i.id} style={{marginBottom:'5px'}}>
+                <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.name}</div>
+                <div style={{display:'flex', justifyContent:'space-between'}}>
+                  <span style={{fontSize:'11px'}}>{i.qty} × {formatRupiah(i.price)}</span>
+                  <span style={{fontSize:'11px', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</span>
+                </div>
+              </div>
+            ))}
+            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(comp.subtotal)}</span></div>
+            {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(comp.discount)}</span></div>}
+            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(comp.total)}</span></div>
+            <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
+            {comp.payment_method === 'CASH' && (
+              <div style={{width:'100%'}}>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
+              </div>
+            )}
+            <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
+            <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
+              <div>Terima kasih telah mempercayakan</div>
+              <div>kendaraan Anda kepada kami!</div>
+              <div style={{marginTop:'6px', fontWeight:'bold'}}>— Rakyat Sinting Matic Shop —</div>
+            </div>
           </div>
-          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span style={{fontWeight:'bold'}}>No. Transaksi:</span><span>{comp.transaction_number}</span></div>
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Tanggal:</span><span>{dateStr}</span></div>
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Jam:</span><span>{timeStr}</span></div>
-          {comp.motor_type && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Motor:</span><span style={{fontWeight:'bold'}}>{comp.motor_type}</span></div>}
-          {comp.mechanic_name !== '-' && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Mekanik:</span><span style={{fontWeight:'bold'}}>{comp.mechanic_name}</span></div>}
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{fontWeight:'bold', fontSize:'10px', marginBottom:'4px'}}>ITEM PEMBELIAN</div>
-          {comp.items.map(i => (
-            <div key={i.id} style={{marginBottom:'5px'}}>
-              <div style={{fontWeight:'bold', fontSize:'11px', marginBottom:'2px'}}>{i.name}</div>
-              <div style={{display:'flex', justifyContent:'space-between'}}>
-                <span style={{fontSize:'11px'}}>{i.qty} × {formatRupiah(i.price)}</span>
-                <span style={{fontSize:'11px', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</span>
+        )}
+
+        {/* Hidden receipt — Nota Besar (A5 formal) */}
+        {nota === 'BESAR' && (
+          <div ref={receiptRef} id="receipt-pdf" className="hidden" style={{background:'white', padding:'20px', maxWidth:'148mm', minWidth:'140mm', fontFamily:'Arial, sans-serif', fontSize:'12px', color:'black'}}>
+            {/* Kop Surat */}
+            <div style={{display:'flex', alignItems:'center', borderBottom:'3px solid #000', paddingBottom:'10px', marginBottom:'10px', gap:'14px'}}>
+              <img src="/logo-struk.jpg" alt="Logo" style={{width:'60px', height:'60px', objectFit:'contain'}} />
+              <div>
+                <div style={{fontWeight:'bold', fontSize:'16px', textTransform:'uppercase'}}>{SHOP_NAME}</div>
+                <div style={{fontSize:'10px', color:'#444', marginTop:'3px', lineHeight:'1.6'}}>{SHOP_ADDRESS}</div>
+                <div style={{fontSize:'10px', color:'#444'}}>WA / Telp: {SHOP_PHONE}</div>
               </div>
             </div>
-          ))}
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Subtotal</span><span>{formatRupiah(comp.subtotal)}</span></div>
-          {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Diskon</span><span>-{formatRupiah(comp.discount)}</span></div>}
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px', fontWeight:'bold'}}><span>TOTAL</span><span>{formatRupiah(comp.total)}</span></div>
-          <hr style={{borderTop:'1px dashed #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Metode Bayar</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
-          {comp.payment_method === 'CASH' && (
-            <div style={{width:'100%'}}>
-              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Uang Diterima</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
-              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'3px'}}><span>Kembalian</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
+
+            {/* Judul Nota */}
+            <div style={{textAlign:'center', margin:'8px 0 12px'}}>
+              <div style={{fontWeight:'bold', fontSize:'15px', letterSpacing:'2px', textTransform:'uppercase', border:'2px solid #000', display:'inline-block', padding:'3px 20px'}}>NOTA SERVIS BESAR</div>
             </div>
-          )}
-          <hr style={{borderTop:'1px solid #000', margin:'6px 0', borderBottom:'none'}} />
-          <div style={{textAlign:'center', marginTop:'12px', fontSize:'11px'}}>
-            <div>Terima kasih telah mempercayakan</div>
-            <div>kendaraan Anda kepada kami!</div>
-            <div style={{marginTop:'6px', fontWeight:'bold'}}>— Rakyat Sinting Matic Shop —</div>
+
+            {/* Info Transaksi */}
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 20px', marginBottom:'12px', fontSize:'12px'}}>
+              <div><span style={{fontWeight:'bold'}}>No. Nota:</span> {comp.transaction_number}</div>
+              <div><span style={{fontWeight:'bold'}}>Tanggal:</span> {dateStr}</div>
+              <div><span style={{fontWeight:'bold'}}>Jam:</span> {timeStr}</div>
+              <div><span style={{fontWeight:'bold'}}>Mekanik:</span> {comp.mechanic_name !== '-' ? comp.mechanic_name : '-'}</div>
+              {comp.motor_type && <div style={{gridColumn:'span 2'}}><span style={{fontWeight:'bold'}}>Jenis Motor / No. Polisi:</span> {comp.motor_type}</div>}
+            </div>
+
+            {/* Tabel Item */}
+            <table style={{width:'100%', borderCollapse:'collapse', marginBottom:'10px', fontSize:'12px'}}>
+              <thead>
+                <tr style={{background:'#000', color:'#fff'}}>
+                  <th style={{padding:'5px 8px', textAlign:'left', width:'5%'}}>No</th>
+                  <th style={{padding:'5px 8px', textAlign:'left'}}>Nama Item / Jasa</th>
+                  <th style={{padding:'5px 8px', textAlign:'center', width:'10%'}}>Jenis</th>
+                  <th style={{padding:'5px 8px', textAlign:'center', width:'8%'}}>Qty</th>
+                  <th style={{padding:'5px 8px', textAlign:'right', width:'18%'}}>Harga Satuan</th>
+                  <th style={{padding:'5px 8px', textAlign:'right', width:'18%'}}>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comp.items.map((i, idx) => (
+                  <tr key={i.id} style={{borderBottom:'1px solid #ccc', background: idx % 2 === 0 ? '#f9f9f9' : '#fff'}}>
+                    <td style={{padding:'5px 8px'}}>{idx + 1}</td>
+                    <td style={{padding:'5px 8px', fontWeight:'bold'}}>{i.name}</td>
+                    <td style={{padding:'5px 8px', textAlign:'center', fontSize:'10px'}}>{i.is_service ? 'JASA' : 'PART'}</td>
+                    <td style={{padding:'5px 8px', textAlign:'center'}}>{i.qty}</td>
+                    <td style={{padding:'5px 8px', textAlign:'right'}}>{formatRupiah(i.price)}</td>
+                    <td style={{padding:'5px 8px', textAlign:'right', fontWeight:'bold'}}>{formatRupiah(i.price * i.qty)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Ringkasan Pembayaran */}
+            <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'12px'}}>
+              <div style={{width:'220px', fontSize:'12px'}}>
+                <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Subtotal:</span><span>{formatRupiah(comp.subtotal)}</span></div>
+                {comp.discount > 0 && <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0', color:'#c00'}}><span>Diskon:</span><span>-{formatRupiah(comp.discount)}</span></div>}
+                <div style={{display:'flex', justifyContent:'space-between', padding:'5px 0', borderTop:'2px solid #000', fontWeight:'bold', fontSize:'14px'}}><span>TOTAL:</span><span>{formatRupiah(comp.total)}</span></div>
+                <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Metode:</span><span style={{fontWeight:'bold'}}>{comp.payment_method}</span></div>
+                {comp.payment_method === 'CASH' && <>
+                  <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Dibayar:</span><span>{formatRupiah(comp.total + comp.change_amount)}</span></div>
+                  <div style={{display:'flex', justifyContent:'space-between', padding:'3px 0'}}><span>Kembalian:</span><span style={{fontWeight:'bold'}}>{formatRupiah(comp.change_amount)}</span></div>
+                </>}
+              </div>
+            </div>
+
+            {/* Tanda Tangan */}
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginTop:'20px', fontSize:'11px'}}>
+              <div style={{textAlign:'center'}}>
+                <div style={{marginBottom:'40px'}}>Pelanggan,</div>
+                <div style={{borderTop:'1px solid #000', paddingTop:'4px'}}>( _________________________ )</div>
+              </div>
+              <div style={{textAlign:'center'}}>
+                <div style={{marginBottom:'2px'}}>Bengkel,</div>
+                <div style={{marginBottom:'32px', fontWeight:'bold', fontSize:'10px'}}>{SHOP_NAME}</div>
+                <div style={{borderTop:'1px solid #000', paddingTop:'4px'}}>( _________________________ )</div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     )
   }
@@ -663,7 +750,28 @@ export function Cashier() {
           {cart.length > 0 && !completed && <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
         </div>
 
-        {completed ? renderCompleted(completed) : (
+        {/* Nota Type Toggle */}
+        {!completed && (
+          <div className="px-4 py-2 border-b bg-gray-50">
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1.5">Jenis Nota</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={() => updateSession({ notaType: 'KECIL' })}
+                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${(notaType ?? 'KECIL') === 'KECIL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                🔧 Nota Kecil
+              </button>
+              <button
+                onClick={() => updateSession({ notaType: 'BESAR' })}
+                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${notaType === 'BESAR' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                🔩 Nota Besar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {completed ? renderCompleted(completed, notaType ?? 'KECIL') : (
           <>
             <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-[200px] md:min-h-0">
               {cart.length === 0 ? (
