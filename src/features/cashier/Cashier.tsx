@@ -264,6 +264,7 @@ export function Cashier() {
 
   // --- Cart operations ---
   function addProduct(p: Product) {
+    if (!confirm(`Tambahkan ${p.name} ke keranjang?`)) return
     const newCart = [...cart]
     const ex = newCart.find(i => i.product_id === p.id)
     if (ex) {
@@ -276,6 +277,7 @@ export function Cashier() {
   }
 
   function addService(s: Service) {
+    if (!confirm(`Tambahkan jasa ${s.name} ke keranjang?`)) return
     const ex = cart.find(i => i.service_id === s.id)
     if (ex) {
       updateSession({ cart: cart.map(i => i.service_id === s.id ? { ...i, qty: i.qty + 1 } : i) })
