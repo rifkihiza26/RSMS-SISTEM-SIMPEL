@@ -23,6 +23,16 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
   clone.style.position = 'absolute'
   clone.style.top = '-9999px' // Pindahkan keluar layar
   clone.style.left = '-9999px'
+  
+  // Force width berdasarkan inline maxWidth jika ada (untuk konsistensi antar perangkat)
+  if (originalElement.style.maxWidth) {
+    clone.style.width = originalElement.style.maxWidth
+  } else if (originalElement.style.width) {
+    clone.style.width = originalElement.style.width
+  } else {
+    clone.style.width = '800px' // Fallback desktop layout
+  }
+
   document.body.appendChild(clone)
 
   try {
@@ -32,6 +42,7 @@ export async function downloadPDF(elementId: string, filename: string): Promise<
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
+      windowWidth: 1024 // Memaksa layout desktop saat render PDF di HP
     })
 
     const imgData = canvas.toDataURL('image/png')
