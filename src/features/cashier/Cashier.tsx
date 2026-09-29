@@ -684,21 +684,17 @@ export function Cashier() {
             filteredProducts.length === 0 ? <div className="col-span-full text-center py-8 text-gray-400 text-sm">Produk tidak ditemukan</div> :
             filteredProducts.map(p => (
               <button key={p.id} onClick={() => addProduct(p)} disabled={p.stock === 0}
-                className={`text-left bg-white border rounded-xl p-3 shadow-sm hover:border-primary hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed`}>
-                <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">PRODUK</span>
-                <p className="font-semibold text-gray-900 text-sm mt-1.5 leading-tight line-clamp-2">{p.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{p.sku}</p>
+                className={`text-left bg-white border rounded-xl p-3 shadow-sm hover:border-primary hover:shadow-md transition-all disabled:opacity-40 disabled:bg-gray-50 disabled:cursor-not-allowed`}>
+                <p className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">{p.name}</p>
                 <p className="text-sm font-bold text-gray-900 mt-2">{formatRupiah(p.selling_price)}</p>
-                <p className={`text-xs mt-0.5 ${p.stock === 0 ? 'text-red-500' : p.stock <= 3 ? 'text-orange-500' : 'text-gray-400'}`}>Stok: {p.stock}</p>
+                <p className={`text-xs mt-0.5 font-medium ${p.stock === 0 ? 'text-red-500' : p.stock <= 3 ? 'text-orange-500' : 'text-gray-400'}`}>Stok: {p.stock}</p>
               </button>
             ))
           ) : (
             filteredServices.length === 0 ? <div className="col-span-full text-center py-8 text-gray-400 text-sm">Jasa tidak ditemukan</div> :
             filteredServices.map(s => (
               <button key={s.id} onClick={() => addService(s)} className="text-left bg-white border rounded-xl p-3 shadow-sm hover:border-blue-500 hover:shadow-md transition-all">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">JASA</span>
-                <p className="font-semibold text-gray-900 text-sm mt-1.5 leading-tight line-clamp-2">{s.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{s.service_code}</p>
+                <p className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">{s.name}</p>
                 <p className="text-sm font-bold text-gray-900 mt-2">{formatRupiah(s.selling_price)}</p>
               </button>
             ))
@@ -745,11 +741,16 @@ export function Cashier() {
         </div>
 
         {/* Cart header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50/50">
           <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
             <ShoppingCart className="h-4 w-4" /> {activeSession.label}
+            {cart.length > 0 && !completed && <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
           </div>
-          {cart.length > 0 && !completed && <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
+          {!completed && (
+            <button onClick={cancelOpenBill} disabled={processing} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Batalkan Sesi">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Nota Type Toggle */}
@@ -808,12 +809,6 @@ export function Cashier() {
             </div>
 
                         {/* Open Bill Action Buttons */}
-            <div className="px-4 pt-2 pb-1 flex justify-end">
-              <button onClick={cancelOpenBill} disabled={processing}
-                className="py-1.5 px-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg text-xs flex items-center gap-1 transition-colors">
-                ✕ Batalkan Sesi
-              </button>
-            </div>
             
             <div className="px-4 py-3 border-t space-y-2">
               {/* Date input */}
