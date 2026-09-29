@@ -649,7 +649,7 @@ export function Cashier() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 h-full">
+    <div className="flex flex-col-reverse lg:flex-row gap-4 h-full">
       {/* Left: Search + Items */}
       <div className="flex-1 space-y-3 min-w-0">
         <div className="flex gap-2">
@@ -690,7 +690,7 @@ export function Cashier() {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:max-h-[calc(100vh-160px)] overflow-y-auto pr-1 pb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 lg:max-h-[calc(100vh-160px)] overflow-y-auto pr-1 pb-4">
           {tab === 'PRODUCT' ? (
             filteredProducts.length === 0 ? <div className="col-span-full text-center py-8 text-gray-400 text-sm">Produk tidak ditemukan</div> :
             filteredProducts.map(p => (
@@ -714,7 +714,7 @@ export function Cashier() {
       </div>
 
       {/* Right: Cart + Payment */}
-      <div className="bg-white border rounded-xl shadow-sm flex flex-col h-fit md:h-[calc(100vh-100px)] sticky top-4 w-full md:w-80 xl:w-96 flex-shrink-0">
+      <div className="bg-white border rounded-xl shadow-sm flex flex-col h-fit lg:h-[calc(100vh-100px)] lg:sticky lg:top-4 w-full lg:w-80 xl:w-96 flex-shrink-0">
         {/* Session Tabs */}
         <div className="flex items-center gap-1 px-2 pt-2 border-b overflow-x-auto">
           {sessions.map(s => (
@@ -787,7 +787,7 @@ export function Cashier() {
 
         {completed ? renderCompleted(completed, notaType ?? 'KECIL') : (
           <>
-            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-[200px] md:min-h-0">
+            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-[150px] max-h-[35vh] lg:max-h-none lg:min-h-0">
               {cart.length === 0 ? (
                 <div className="text-center py-8 text-gray-400 text-sm">Keranjang kosong</div>
               ) : cart.map(item => (
