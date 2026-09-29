@@ -649,7 +649,7 @@ export function Cashier() {
   }
 
   return (
-    <div className="flex flex-col-reverse lg:flex-row gap-4 h-full">
+    <div className="flex flex-col lg:flex-row gap-4 h-full">
       {/* Left: Search + Items */}
       <div className="flex-1 space-y-3 min-w-0">
         <div className="flex gap-2">

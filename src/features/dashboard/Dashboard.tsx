@@ -17,10 +17,10 @@ function StatCard({ title, value, icon: Icon, color = 'blue', subtitle }: {
   return (
     <div className="bg-white border rounded-xl p-5 shadow-sm">
       <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 pr-2">
           <p className="text-sm text-gray-500 font-medium truncate">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-          {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 truncate" title={value}>{value}</p>
+          {subtitle && <p className="text-xs text-gray-400 mt-1 truncate">{subtitle}</p>}
         </div>
         <div className={`p-2.5 rounded-lg ${colors[color]} flex-shrink-0 ml-3`}>
           <Icon className="h-5 w-5" />
