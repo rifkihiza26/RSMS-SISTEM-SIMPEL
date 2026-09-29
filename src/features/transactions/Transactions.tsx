@@ -355,7 +355,8 @@ export function Transactions() {
                   iframe.style.position = 'fixed'
                   iframe.style.right = '0'
                   iframe.style.bottom = '0'
-                  iframe.style.width = '58mm'
+                  const isBesar = (detailTrx.notes || '').includes('[BESAR]');
+                  iframe.style.width = isBesar ? '148mm' : '58mm'
                   iframe.style.height = '0'
                   iframe.style.border = 'none'
                   iframe.style.visibility = 'hidden'

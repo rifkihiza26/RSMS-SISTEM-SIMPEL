@@ -435,7 +435,7 @@ export function Cashier() {
     iframe.style.position = 'fixed'
     iframe.style.right = '0'
     iframe.style.bottom = '0'
-    iframe.style.width = '58mm'
+    iframe.style.width = notaType === 'BESAR' ? '148mm' : '58mm'
     iframe.style.height = '0'
     iframe.style.border = 'none'
     iframe.style.visibility = 'hidden'
@@ -444,15 +444,32 @@ export function Cashier() {
     const doc = iframe.contentWindow?.document
     if (!doc) return
 
+    const isBesar = notaType === 'BESAR';
+    
     doc.open()
-    doc.write(`<html><head><title>Struk</title>
-    <style>
-      @page { size: 58mm auto; margin: 0; }
-      body { font-family: monospace; font-size: 12px; margin: 0; padding: 4px; width: 58mm; color: black; background: white; }
-    </style>
-    </head><body>
-    ${el.innerHTML}
-    </body></html>`)
+    if (isBesar) {
+      // Setup print for A5
+      doc.write(`<html><head><title>Invoice</title>
+      <style>
+        @page { size: A5; margin: 0; }
+        body { font-family: Arial, sans-serif; font-size: 12px; margin: 0; padding: 20px; color: black; background: white; }
+        * { box-sizing: border-box; }
+      </style>
+      </head><body>
+      ${el.innerHTML}
+      </body></html>`)
+    } else {
+      // Setup print for 58mm thermal
+      doc.write(`<html><head><title>Struk</title>
+      <style>
+        @page { size: 58mm auto; margin: 0; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 11px; margin: 0; padding: 0 4px; width: 58mm; color: black; background: white; }
+        * { box-sizing: border-box; }
+      </style>
+      </head><body>
+      ${el.innerHTML}
+      </body></html>`)
+    }
     doc.close()
 
     setTimeout(() => {
