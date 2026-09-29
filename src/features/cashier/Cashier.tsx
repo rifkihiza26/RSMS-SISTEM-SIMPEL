@@ -88,7 +88,8 @@ export function Cashier() {
   const [tab, setTab] = useState<'PRODUCT' | 'SERVICE'>('PRODUCT')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
-  const [manualForm, setManualForm] = useState([{ id: crypto.randomUUID(), name: '', type: 'Jasa', price: '', qty: '1' }])
+  const [manualBarang, setManualBarang] = useState<{id:string;name:string;price:string;qty:string}[]>([])
+  const [manualJasa, setManualJasa] = useState<{id:string;name:string;price:string}[]>([])
   const [manualError, setManualError] = useState('')
   const [stockWarning, setStockWarning] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -306,41 +307,51 @@ export function Cashier() {
 
   function addManual(e: React.FormEvent) {
     e.preventDefault(); setManualError('');
-    
+
     const newItems = [];
-    for (const item of manualForm) {
-      if (!item.name.trim()) return setManualError('Ada item yang belum memiliki nama.');
+
+    for (const item of manualBarang) {
+      if (!item.name.trim()) return setManualError('Ada barang yang belum memiliki nama.');
       const price = parseFloat(item.price);
-      const qty = item.type === 'Jasa' ? 1 : parseInt(item.qty);
-      if (!price || price <= 0) return setManualError('Ada item dengan harga tidak valid.');
+      const qty = parseInt(item.qty);
+      if (!price || price <= 0) return setManualError('Ada barang dengan harga tidak valid.');
       if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.');
-      
-      newItems.push({
-        id: crypto.randomUUID(),
-        name: item.name.trim(),
-        type: 'MANUAL' as const,
-        price,
-        qty,
-        is_service: item.type === 'Jasa'
-      });
+      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL' as const, price, qty, is_service: false });
     }
 
+    for (const item of manualJasa) {
+      if (!item.name.trim()) return setManualError('Ada jasa yang belum memiliki nama.');
+      const price = parseFloat(item.price);
+      if (!price || price <= 0) return setManualError('Ada jasa dengan harga tidak valid.');
+      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL' as const, price, qty: 1, is_service: true });
+    }
+
+    if (newItems.length === 0) return setManualError('Belum ada item yang diisi.');
+
     updateSession({ cart: [...cart, ...newItems] });
-    setManualForm([{ id: crypto.randomUUID(), name: '', type: 'Jasa', price: '', qty: '1' }]);
+    setManualBarang([]);
+    setManualJasa([]);
     setManualOpen(false);
   }
-  
-  function addManualRow() {
-    setManualForm([...manualForm, { id: crypto.randomUUID(), name: '', type: 'Jasa', price: '', qty: '1' }]);
+
+  function addBarangRow() {
+    setManualBarang([...manualBarang, { id: crypto.randomUUID(), name: '', price: '', qty: '1' }]);
   }
-  
-  function removeManualRow(id: string) {
-    if (manualForm.length === 1) return;
-    setManualForm(manualForm.filter(item => item.id !== id));
+  function removeBarangRow(id: string) {
+    setManualBarang(manualBarang.filter(i => i.id !== id));
   }
-  
-  function updateManualRow(id: string, field: string, value: string) {
-    setManualForm(manualForm.map(item => item.id === id ? { ...item, [field]: value } : item));
+  function updateBarangRow(id: string, field: string, value: string) {
+    setManualBarang(manualBarang.map(i => i.id === id ? { ...i, [field]: value } : i));
+  }
+
+  function addJasaRow() {
+    setManualJasa([...manualJasa, { id: crypto.randomUUID(), name: '', price: '' }]);
+  }
+  function removeJasaRow(id: string) {
+    setManualJasa(manualJasa.filter(i => i.id !== id));
+  }
+  function updateJasaRow(id: string, field: string, value: string) {
+    setManualJasa(manualJasa.map(i => i.id === id ? { ...i, [field]: value } : i));
   }
 
   async function completeTransaction() {
@@ -892,66 +903,106 @@ export function Cashier() {
       {manualOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b">
-              <h2 className="font-semibold text-gray-900 text-sm sm:text-base">Input Item Manual</h2>
-              <button onClick={() => setManualOpen(false)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5" /></button>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="font-semibold text-gray-900">Input Item Manual</h2>
+              <button onClick={() => { setManualOpen(false); setManualBarang([]); setManualJasa([]); setManualError('') }} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5" /></button>
             </div>
 
-            <div className="p-3 sm:p-5 overflow-y-auto flex-1">
-              {manualError && <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{manualError}</div>}
+            <div className="p-4 overflow-y-auto flex-1 space-y-5">
+              {manualError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{manualError}</div>}
 
-              <div className="space-y-3">
-                {manualForm.map((item, index) => (
-                  <div key={item.id} className="p-3 sm:p-4 border rounded-xl bg-gray-50/50 relative">
-                    {manualForm.length > 1 && (
-                      <button onClick={() => removeManualRow(item.id)} className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1.5 rounded-full hover:bg-red-200 border-2 border-white z-10">
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                      <div className="flex-1 min-w-0">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Nama Item {index + 1}</label>
-                        <input value={item.name} onChange={e => updateManualRow(item.id, 'name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="Nama barang / jasa" />
-                      </div>
-                      <div className="flex gap-2 sm:gap-3">
-                        <div className="w-24 flex-shrink-0">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
-                          <select value={item.type} onChange={e => updateManualRow(item.id, 'type', e.target.value)} className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
-                            <option value="Jasa">Jasa</option>
-                            <option value="Barang">Barang</option>
-                          </select>
-                        </div>
+              {/* ── SEKSI BARANG ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-primary"/>
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Barang</h3>
+                  <span className="text-xs text-gray-400">(ada qty)</span>
+                </div>
+                {manualBarang.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-2 italic">Belum ada barang ditambahkan</p>
+                ) : (
+                  <div className="space-y-2">
+                    {manualBarang.map((item, index) => (
+                      <div key={item.id} className="flex items-center gap-2 p-3 border rounded-xl bg-blue-50/30 relative">
                         <div className="flex-1 min-w-0">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Harga (Rp)</label>
-                          <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateManualRow(item.id, 'price', parseCurrencyInput(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="0" />
+                          <input value={item.name} onChange={e => updateBarangRow(item.id, 'name', e.target.value)}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                            placeholder={`Nama barang ${index + 1}`} />
                         </div>
-                        {item.type === 'Barang' && (
-                          <div className="w-16 sm:w-20 flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
-                            <input type="number" min="1" value={item.qty} onChange={e => updateManualRow(item.id, 'qty', e.target.value)} className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 text-center" />
-                          </div>
-                        )}
+                        <div className="w-32 flex-shrink-0">
+                          <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateBarangRow(item.id, 'price', parseCurrencyInput(e.target.value))}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                            placeholder="Harga" />
+                        </div>
+                        <div className="w-16 flex-shrink-0">
+                          <input type="number" min="1" value={item.qty} onChange={e => updateBarangRow(item.id, 'qty', e.target.value)}
+                            className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white text-center"
+                            placeholder="Qty" />
+                        </div>
+                        <button onClick={() => removeBarangRow(item.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                <button onClick={addBarangRow} className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors">
+                  <Plus className="h-4 w-4" /> + Tambah Barang
+                </button>
               </div>
 
-              <button onClick={addManualRow} className="mt-3 flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors">
-                <Plus className="h-4 w-4" /> Tambah Baris
-              </button>
+              {/* ── SEKSI JASA ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"/>
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Jasa / Servis</h3>
+                  <span className="text-xs text-gray-400">(qty otomatis 1)</span>
+                </div>
+                {manualJasa.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-2 italic">Belum ada jasa ditambahkan</p>
+                ) : (
+                  <div className="space-y-2">
+                    {manualJasa.map((item, index) => (
+                      <div key={item.id} className="flex items-center gap-2 p-3 border rounded-xl bg-orange-50/30">
+                        <div className="flex-1 min-w-0">
+                          <input value={item.name} onChange={e => updateJasaRow(item.id, 'name', e.target.value)}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 bg-white"
+                            placeholder={`Nama jasa ${index + 1}`} />
+                        </div>
+                        <div className="w-32 flex-shrink-0">
+                          <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateJasaRow(item.id, 'price', parseCurrencyInput(e.target.value))}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 bg-white"
+                            placeholder="Harga" />
+                        </div>
+                        <button onClick={() => removeJasaRow(item.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button onClick={addJasaRow} className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/30 transition-colors">
+                  <Plus className="h-4 w-4" /> + Tambah Jasa
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-between sm:items-center p-3 sm:p-5 border-t bg-gray-50 rounded-b-xl">
-              <div className="text-sm text-center sm:text-left">
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t bg-gray-50 rounded-b-xl">
+              <div className="text-sm">
                 <span className="text-gray-500">Total: </span>
                 <span className="font-bold text-gray-900">
-                  {formatRupiah(manualForm.reduce((sum, item) => sum + ((parseFloat(item.price) || 0) * (item.type === 'Jasa' ? 1 : parseInt(item.qty) || 0)), 0))}
+                  {formatRupiah(
+                    manualBarang.reduce((s, i) => s + (parseFloat(i.price) || 0) * (parseInt(i.qty) || 1), 0) +
+                    manualJasa.reduce((s, i) => s + (parseFloat(i.price) || 0), 0)
+                  )}
                 </span>
+                <span className="text-xs text-gray-400 ml-2">({manualBarang.length} barang, {manualJasa.length} jasa)</span>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setManualOpen(false)} className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 border rounded-lg hover:bg-gray-100 bg-white">Batal</button>
-                <button onClick={addManual} className="flex-1 sm:flex-none px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90">Tambahkan Semua</button>
+                <button type="button" onClick={() => { setManualOpen(false); setManualBarang([]); setManualJasa([]); setManualError('') }} className="px-4 py-2 text-sm font-medium text-gray-600 border rounded-lg hover:bg-gray-100 bg-white">Batal</button>
+                <button onClick={addManual} className="px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90">Tambahkan Semua</button>
               </div>
             </div>
           </div>
