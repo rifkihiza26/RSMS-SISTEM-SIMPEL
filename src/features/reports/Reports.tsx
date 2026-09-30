@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { formatRupiah, formatDateShort } from '@/lib/utils'
 import { downloadPDF } from '@/lib/pdf'
-import { TrendingUp, TrendingDown, Wallet, ShoppingCart, FileText, Download } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, ShoppingCart, FileText, Download, Wrench, Package, ChevronDown, ChevronUp } from 'lucide-react'
 
 type PeriodOption = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom'
+type ItemFilter = 'semua' | 'jasa' | 'part'
 
 function getDateRange(period: PeriodOption, customFrom: string, customTo: string) {
   const now = new Date()
@@ -28,10 +29,19 @@ function getDateRange(period: PeriodOption, customFrom: string, customTo: string
   return { from: customFrom, to: customTo }
 }
 
+function isJasaType(item_type: string) {
+  return item_type === 'SERVICE' || item_type === 'MANUAL_JASA'
+}
+function isPartType(item_type: string) {
+  return item_type === 'PRODUCT' || item_type === 'MANUAL_BARANG' || item_type === 'MANUAL'
+}
+
 export function Reports() {
   const [period, setPeriod] = useState<PeriodOption>('this_month')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const [itemFilter, setItemFilter] = useState<ItemFilter>('semua')
+  const [expandedMechanic, setExpandedMechanic] = useState<string | null>(null)
 
   const { from, to } = getDateRange(period, customFrom, customTo)
 
@@ -75,6 +85,27 @@ export function Reports() {
     }
   })
 
+  // Query transaction_items joined with transactions + mechanics for mechanic report
+  const { data: txItems = [], isLoading: itemsLoading } = useQuery({
+    queryKey: ['report-tx-items', from, to],
+    enabled: !!(from && to),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('transaction_items')
+        .select(`
+          id, item_name, item_type, quantity, unit_price, subtotal, is_service,
+          transactions!inner(
+            id, created_at, motor_type, mechanic_id, status,
+            mechanics(id, name)
+          )
+        `)
+        .gte('transactions.created_at', from + 'T00:00:00')
+        .lte('transactions.created_at', to + 'T23:59:59')
+        .in('transactions.status', ['COMPLETED', 'PAID'])
+      return data ?? []
+    }
+  })
+
   const totalIncome = incomes.reduce((s, i) => s + i.amount, 0)
   const totalExpense = expenses.reduce((s, e) => s + e.amount, 0)
   const netProfit = totalIncome - totalExpense
@@ -107,7 +138,60 @@ export function Reports() {
     return acc
   }, {} as Record<string, number>)
 
-  const isLoading = incLoading || expLoading || trxLoading
+  // Jasa vs Part breakdown from transaction_items
+  const totalJasa = txItems
+    .filter(i => isJasaType(i.item_type))
+    .reduce((s, i) => s + (i.subtotal ?? 0), 0)
+  const totalPart = txItems
+    .filter(i => isPartType(i.item_type))
+    .reduce((s, i) => s + (i.subtotal ?? 0), 0)
+  const totalItemAll = totalJasa + totalPart
+
+  // Filter items by itemFilter
+  const filteredItems = txItems.filter(i => {
+    if (itemFilter === 'jasa') return isJasaType(i.item_type)
+    if (itemFilter === 'part') return isPartType(i.item_type)
+    return true
+  })
+
+  // Group by mechanic for mechanic report
+  type MechanicEntry = {
+    mechanic_id: string | null
+    mechanic_name: string
+    items: Array<{
+      date: string
+      motor: string
+      item_name: string
+      item_type: string
+      quantity: number
+      subtotal: number
+    }>
+    total: number
+  }
+
+  const mechanicMap = filteredItems.reduce((acc, i) => {
+    const trx = (i as any).transactions
+    if (!trx) return acc
+    const mechId = trx.mechanic_id ?? 'TANPA_MEKANIK'
+    const mechName = trx.mechanics?.name ?? '(Tanpa Mekanik)'
+    if (!acc[mechId]) {
+      acc[mechId] = { mechanic_id: mechId, mechanic_name: mechName, items: [], total: 0 }
+    }
+    acc[mechId].items.push({
+      date: trx.created_at,
+      motor: trx.motor_type ?? '-',
+      item_name: i.item_name,
+      item_type: i.item_type,
+      quantity: i.quantity,
+      subtotal: i.subtotal ?? 0,
+    })
+    acc[mechId].total += (i.subtotal ?? 0)
+    return acc
+  }, {} as Record<string, MechanicEntry>)
+
+  const mechanicList = Object.values(mechanicMap).sort((a, b) => b.total - a.total)
+
+  const isLoading = incLoading || expLoading || trxLoading || itemsLoading
 
   function printReport() {
     window.print()
@@ -181,43 +265,185 @@ export function Reports() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white border rounded-xl p-4 shadow-sm">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="pr-2">
                   <p className="text-xs text-gray-500 font-medium">Total Pemasukan</p>
-                  <p className="text-xl font-bold text-green-600 mt-1">{formatRupiah(totalIncome)}</p>
+                  <p className="text-lg sm:text-xl font-bold text-green-600 mt-1 truncate">{formatRupiah(totalIncome)}</p>
                 </div>
-                <div className="p-2 bg-green-50 rounded-lg"><TrendingUp className="h-4 w-4 text-green-600" /></div>
+                <div className="p-2 bg-green-50 rounded-lg flex-shrink-0"><TrendingUp className="h-4 w-4 text-green-600" /></div>
               </div>
             </div>
             <div className="bg-white border rounded-xl p-4 shadow-sm">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="pr-2">
                   <p className="text-xs text-gray-500 font-medium">Total Pengeluaran</p>
-                  <p className="text-xl font-bold text-red-600 mt-1">{formatRupiah(totalExpense)}</p>
+                  <p className="text-lg sm:text-xl font-bold text-red-600 mt-1 truncate">{formatRupiah(totalExpense)}</p>
                 </div>
-                <div className="p-2 bg-red-50 rounded-lg"><TrendingDown className="h-4 w-4 text-red-600" /></div>
+                <div className="p-2 bg-red-50 rounded-lg flex-shrink-0"><TrendingDown className="h-4 w-4 text-red-600" /></div>
               </div>
             </div>
-            <div className={`bg-white border rounded-xl p-4 shadow-sm`}>
+            <div className="bg-white border rounded-xl p-4 shadow-sm">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="pr-2">
                   <p className="text-xs text-gray-500 font-medium">Saldo Bersih</p>
-                  <p className={`text-xl font-bold mt-1 ${netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatRupiah(netProfit)}</p>
+                  <p className={`text-lg sm:text-xl font-bold mt-1 truncate ${netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatRupiah(netProfit)}</p>
                 </div>
-                <div className={`p-2 rounded-lg ${netProfit >= 0 ? 'bg-blue-50' : 'bg-red-50'}`}>
+                <div className={`p-2 rounded-lg flex-shrink-0 ${netProfit >= 0 ? 'bg-blue-50' : 'bg-red-50'}`}>
                   <Wallet className={`h-4 w-4 ${netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
                 </div>
               </div>
             </div>
             <div className="bg-white border rounded-xl p-4 shadow-sm">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="pr-2">
                   <p className="text-xs text-gray-500 font-medium">Total Transaksi</p>
-                  <p className="text-xl font-bold text-gray-900 mt-1">{totalTrx}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Rata-rata {formatRupiah(Math.round(avgTrx))}</p>
+                  <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{totalTrx}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">Rata-rata {formatRupiah(Math.round(avgTrx))}</p>
                 </div>
-                <div className="p-2 bg-purple-50 rounded-lg"><ShoppingCart className="h-4 w-4 text-purple-600" /></div>
+                <div className="p-2 bg-purple-50 rounded-lg flex-shrink-0"><ShoppingCart className="h-4 w-4 text-purple-600" /></div>
               </div>
             </div>
+          </div>
+
+          {/* Jasa vs Part Breakdown */}
+          <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-sm font-semibold text-gray-700">Breakdown Jasa & Part</h2>
+              {/* Filter Toggle */}
+              <div className="flex gap-1">
+                {(['semua', 'jasa', 'part'] as ItemFilter[]).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setItemFilter(f)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${itemFilter === f ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {f === 'semua' ? 'Semua' : f === 'jasa' ? '🔧 Jasa' : '📦 Part'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {(itemFilter === 'semua' || itemFilter === 'jasa') && (
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Wrench className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-semibold text-blue-700">Total Jasa</span>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-700">{formatRupiah(totalJasa)}</p>
+                  <p className="text-xs text-blue-500 mt-1">
+                    {totalItemAll > 0 ? Math.round((totalJasa / totalItemAll) * 100) : 0}% dari total item
+                  </p>
+                  <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${totalItemAll > 0 ? (totalJasa / totalItemAll) * 100 : 0}%` }} />
+                  </div>
+                </div>
+              )}
+              {(itemFilter === 'semua' || itemFilter === 'part') && (
+                <div className="bg-orange-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Package className="h-4 w-4 text-orange-600" />
+                    <span className="text-sm font-semibold text-orange-700">Total Part / Barang</span>
+                  </div>
+                  <p className="text-2xl font-bold text-orange-700">{formatRupiah(totalPart)}</p>
+                  <p className="text-xs text-orange-500 mt-1">
+                    {totalItemAll > 0 ? Math.round((totalPart / totalItemAll) * 100) : 0}% dari total item
+                  </p>
+                  <div className="mt-2 h-2 bg-orange-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-orange-500 rounded-full" style={{ width: `${totalItemAll > 0 ? (totalPart / totalItemAll) * 100 : 0}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mechanic Report */}
+          <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-sm font-semibold text-gray-700">Laporan per Mekanik</h2>
+              <div className="flex gap-1">
+                {(['semua', 'jasa', 'part'] as ItemFilter[]).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setItemFilter(f)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${itemFilter === f ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {f === 'semua' ? 'Semua' : f === 'jasa' ? '🔧 Jasa' : '📦 Part'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {mechanicList.length === 0 ? (
+              <div className="text-center py-10 text-gray-400 text-sm">Tidak ada data mekanik pada periode ini</div>
+            ) : (
+              <div className="divide-y">
+                {mechanicList.map(mech => {
+                  const isExpanded = expandedMechanic === mech.mechanic_id
+                  return (
+                    <div key={mech.mechanic_id}>
+                      {/* Mechanic Header Row */}
+                      <button
+                        onClick={() => setExpandedMechanic(isExpanded ? null : mech.mechanic_id)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-primary font-bold text-xs">{mech.mechanic_name.charAt(0).toUpperCase()}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{mech.mechanic_name}</p>
+                            <p className="text-xs text-gray-400">{mech.items.length} item dikerjakan</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-gray-900">{formatRupiah(mech.total)}</span>
+                          {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                        </div>
+                      </button>
+
+                      {/* Expanded Detail */}
+                      {isExpanded && (
+                        <div className="bg-gray-50 border-t">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b bg-gray-100">
+                                <th className="text-left px-4 py-2 font-medium text-gray-600">Tanggal</th>
+                                <th className="text-left px-4 py-2 font-medium text-gray-600">Motor</th>
+                                <th className="text-left px-4 py-2 font-medium text-gray-600">Item</th>
+                                <th className="text-center px-4 py-2 font-medium text-gray-600">Jenis</th>
+                                <th className="text-right px-4 py-2 font-medium text-gray-600">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {mech.items.map((item, idx) => {
+                                const isJasa = isJasaType(item.item_type)
+                                return (
+                                  <tr key={idx} className="border-b last:border-0 hover:bg-white">
+                                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{formatDateShort(item.date)}</td>
+                                    <td className="px-4 py-2 text-gray-700 font-medium">{item.motor}</td>
+                                    <td className="px-4 py-2 text-gray-800">{item.item_name} {item.quantity > 1 ? `×${item.quantity}` : ''}</td>
+                                    <td className="px-4 py-2 text-center">
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isJasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                        {isJasa ? 'JASA' : 'PART'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatRupiah(item.subtotal)}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t bg-gray-100">
+                                <td colSpan={4} className="px-4 py-2 font-bold text-gray-700 text-right">Total {mech.mechanic_name}:</td>
+                                <td className="px-4 py-2 text-right font-bold text-primary">{formatRupiah(mech.total)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -236,10 +462,7 @@ export function Reports() {
                       <span className="text-xs font-semibold text-gray-900 ml-2">{formatRupiah(amount)}</span>
                     </div>
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 rounded-full"
-                        style={{ width: `${totalIncome > 0 ? (amount / totalIncome) * 100 : 0}%` }}
-                      />
+                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${totalIncome > 0 ? (amount / totalIncome) * 100 : 0}%` }} />
                     </div>
                   </div>
                 ))}
@@ -261,10 +484,7 @@ export function Reports() {
                       <span className="text-xs font-semibold text-gray-900 ml-2">{formatRupiah(amount)}</span>
                     </div>
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-red-500 rounded-full"
-                        style={{ width: `${totalExpense > 0 ? (amount / totalExpense) * 100 : 0}%` }}
-                      />
+                      <div className="h-full bg-red-500 rounded-full" style={{ width: `${totalExpense > 0 ? (amount / totalExpense) * 100 : 0}%` }} />
                     </div>
                   </div>
                 ))}
@@ -289,10 +509,7 @@ export function Reports() {
                         <span className="text-xs font-semibold text-gray-900">{formatRupiah(amount)}</span>
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${colors[method] ?? 'bg-gray-400'}`}
-                          style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }}
-                        />
+                        <div className={`h-full rounded-full ${colors[method] ?? 'bg-gray-400'}`} style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }} />
                       </div>
                     </div>
                   )
@@ -318,10 +535,7 @@ export function Reports() {
                         <span className="text-xs font-semibold text-gray-900">{formatRupiah(amount)}</span>
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${colors[type] ?? 'bg-gray-400'}`}
-                          style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }}
-                        />
+                        <div className={`h-full rounded-full ${colors[type] ?? 'bg-gray-400'}`} style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }} />
                       </div>
                     </div>
                   )

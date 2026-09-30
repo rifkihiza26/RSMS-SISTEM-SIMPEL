@@ -13,7 +13,7 @@ const SHOP_PHONE = '0813-8760-7676'
 type CartItem = {
   id: string
   name: string
-  type: 'PRODUCT' | 'SERVICE' | 'MANUAL'
+  type: 'PRODUCT' | 'SERVICE' | 'MANUAL' | 'MANUAL_BARANG' | 'MANUAL_JASA'
   price: number
   qty: number
   product_id?: string
@@ -316,14 +316,14 @@ export function Cashier() {
       const qty = parseInt(item.qty);
       if (!price || price <= 0) return setManualError('Ada barang dengan harga tidak valid.');
       if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.');
-      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL' as const, price, qty, is_service: false });
+      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL_BARANG' as const, price, qty, is_service: false });
     }
 
     for (const item of manualJasa) {
       if (!item.name.trim()) return setManualError('Ada jasa yang belum memiliki nama.');
       const price = parseFloat(item.price);
       if (!price || price <= 0) return setManualError('Ada jasa dengan harga tidak valid.');
-      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL' as const, price, qty: 1, is_service: true });
+      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL_JASA' as const, price, qty: 1, is_service: true });
     }
 
     if (newItems.length === 0) return setManualError('Belum ada item yang diisi.');
