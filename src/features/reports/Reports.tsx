@@ -85,6 +85,14 @@ export function Reports() {
     }
   })
 
+  const { data: allMechanics = [] } = useQuery({
+    queryKey: ['report-mechanics'],
+    queryFn: async () => {
+      const { data } = await supabase.from('mechanics').select('id, name')
+      return data ?? []
+    }
+  })
+
   // Query transaction_items joined with transactions + mechanics for mechanic report
   const { data: txItems = [], isLoading: itemsLoading } = useQuery({
     queryKey: ['report-tx-items', from, to],
@@ -95,8 +103,8 @@ export function Reports() {
         .select(`
           id, item_name, item_type, quantity, unit_price, subtotal, is_service,
           transactions!inner(
-            id, created_at, motor_type, mechanic_id, status,
-            mechanics(id, name)
+            id, created_at, motor_type, mechanic_id, status
+            
           )
         `)
         .gte('transactions.created_at', from + 'T00:00:00')
@@ -173,7 +181,7 @@ export function Reports() {
     const trx = (i as any).transactions
     if (!trx) return acc
     const mechId = trx.mechanic_id ?? 'TANPA_MEKANIK'
-    const mechName = trx.mechanics?.name ?? '(Tanpa Mekanik)'
+    const mechName = allMechanics.find(m => m.id === mechId)?.name ?? '(Tanpa Mekanik)'
     if (!acc[mechId]) {
       acc[mechId] = { mechanic_id: mechId, mechanic_name: mechName, items: [], total: 0 }
     }
