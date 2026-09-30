@@ -101,7 +101,7 @@ export function Reports() {
       const { data } = await supabase
         .from('transaction_items')
         .select(`
-          id, item_name, item_type, quantity, unit_price, subtotal, is_service,
+          id, item_name, item_type, quantity, unit_price, subtotal,
           transactions!inner(
             id, created_at, motor_type, mechanic_id, status
             
