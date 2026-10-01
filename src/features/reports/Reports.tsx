@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { formatRupiah } from '@/lib/utils'
 import {
-  TrendingUp, TrendingDown, Wallet, FileText,
+  TrendingDown, FileText,
   Download, Wrench, ShoppingCart, Filter, ChevronDown, ChevronUp
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -196,11 +196,12 @@ export function Reports() {
   const totalRekapan = rekapanWithDetail.reduce((s, t) => s + t.total, 0)
   const totalKasir = kasirTrx.reduce((s, t) => s + t.total, 0)
   const totalModal = rekapanWithDetail.reduce((s, t) => s + t.totalModal, 0)
-  const totalUntung = rekapanWithDetail.reduce((s, t) => s + t.totalUntung, 0)
+  
   const totalJasaAll = rekapanWithDetail.reduce((s, t) => s + t.totalJasa, 0)
   const totalPartAll = rekapanWithDetail.reduce((s, t) => s + t.totalPart, 0)
   const totalPengeluaran = expenses.reduce((s, e) => s + e.amount, 0)
-  const labaRekapan = totalUntung + totalKasir - totalPengeluaran
+  const untungParts = totalPartAll - totalModal
+  const labaRekapan = totalJasaAll + untungParts + totalKasir - totalPengeluaran
   const totalPiutang = rekapanWithDetail.reduce((s, t) => s + (t.sisa > 0 ? t.sisa : 0), 0)
 
   // Group rekapan by mechanic
@@ -257,7 +258,7 @@ export function Reports() {
       </tr>
     `).join('')
 
-    const labaKotor = totalRekapan + totalKasir - totalModal;
+    
 
     win.document.write(`
       <html><head><title>Buku Kas / Laporan - ${periodLabel}</title>
@@ -291,28 +292,22 @@ export function Reports() {
       <div class="sub">Periode: ${periodLabel}</div>
       
       <div class="summary-box">
-        <h2 style="margin-top:0; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 15px;">Ringkasan Keuangan (Laba Rugi)</h2>
-        <div class="summary-grid">
-          <div class="sum-col">
-            <div class="bold" style="margin-bottom: 10px;">PEMASUKAN (INCOME)</div>
-            <div class="sum-row"><span>Total Rekapan Servis:</span> <span class="text-green">${formatRupiah(totalRekapan)}</span></div>
-            <div class="sum-row"><span>Total Penjualan Kasir:</span> <span class="text-green">${formatRupiah(totalKasir)}</span></div>
-            <div class="sum-row total"><span>TOTAL KOTOR:</span> <span class="text-green">${formatRupiah(totalRekapan + totalKasir)}</span></div>
-            <br/>
-            <div class="sum-row"><span>Harga Pokok / Modal Parts:</span> <span class="text-red">-${formatRupiah(totalModal)}</span></div>
-            <div class="sum-row total"><span>ESTIMASI LABA KOTOR:</span> <span class="text-blue">${formatRupiah(labaKotor)}</span></div>
-          </div>
-          <div class="sum-col">
-            <div class="bold" style="margin-bottom: 10px;">PENGELUARAN (OUTCOME)</div>
-            <div class="sum-row"><span>Pengeluaran Operasional & Gaji:</span> <span class="text-red">${formatRupiah(totalPengeluaran)}</span></div>
-            <div class="sum-row total"><span>TOTAL PENGELUARAN:</span> <span class="text-red">${formatRupiah(totalPengeluaran)}</span></div>
-            <br/><br/><br/>
-            <div class="sum-row total" style="font-size: 18px; border-top: 3px solid #111;">
-              <span>LABA BERSIH:</span> 
-              <span class="${labaRekapan >= 0 ? 'text-green' : 'text-red'}">${formatRupiah(labaRekapan)}</span>
-            </div>
-          </div>
-        </div>
+        <h2 style="margin-top:0; margin-bottom:16px; font-size:16px;">Ringkasan Pendapatan</h2>
+        <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom: 0;">
+          <tbody>
+            <tr><td style="padding:7px 0; color:#555;">🔨 Total Jasa Servis</td><td style="text-align:right; font-weight:bold; color:#16a34a;">${formatRupiah(totalJasaAll)}</td></tr>
+            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">🔩 Penjualan Parts (Bruto)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(totalPartAll)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">📦 Modal / HPP Parts</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalModal)}</td></tr>
+            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">✅ Untung dari Parts</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(untungParts)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">🛒 Pendapatan Kasir</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">💸 Pengeluaran</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalPengeluaran)}</td></tr>
+            ${totalPiutang > 0 ? `<tr><td style="padding:7px 0; color:#555;">⚠️ Piutang Belum Lunas</td><td style="text-align:right; font-weight:bold; color:#ea580c;">${formatRupiah(totalPiutang)}</td></tr>` : ''}
+            <tr>
+              <td style="padding:12px 0 8px; border-top:2px solid #1f2937; font-size:16px; font-weight:bold; color:#111;">🏆 TOTAL PENDAPATAN BERSIH</td>
+              <td style="text-align:right; font-size:18px; font-weight:bold; border-top:2px solid #1f2937; color:${labaRekapan >= 0 ? '#1d4ed8' : '#dc2626'}">${formatRupiah(labaRekapan)}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       ${rekapanWithDetail.length > 0 ? `
@@ -456,21 +451,18 @@ export function Reports() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Rekapan Servis', value: formatRupiah(totalRekapan), color: 'text-green-600', bg: 'bg-green-50', icon: Wrench },
-          { label: 'Transaksi Kasir', value: formatRupiah(totalKasir), color: 'text-blue-600', bg: 'bg-blue-50', icon: ShoppingCart },
-          { label: 'Total Modal Parts', value: formatRupiah(totalModal), color: 'text-red-600', bg: 'bg-red-50', icon: TrendingDown },
-          { label: 'Piutang Belum Lunas', value: formatRupiah(totalPiutang), color: 'text-orange-600', bg: 'bg-orange-50', icon: Wallet },
-          { label: 'Jasa Mekanik', value: formatRupiah(totalJasaAll), color: 'text-green-600', bg: 'bg-green-50', icon: TrendingUp },
-          { label: 'Penjualan Parts', value: formatRupiah(totalPartAll), color: 'text-blue-600', bg: 'bg-blue-50', icon: ShoppingCart },
-          { label: 'Total Pengeluaran', value: formatRupiah(totalPengeluaran), color: 'text-red-600', bg: 'bg-red-50', icon: TrendingDown },
-          { label: 'Estimasi Laba Bersih', value: formatRupiah(labaRekapan), color: labaRekapan >= 0 ? 'text-blue-700' : 'text-red-600', bg: 'bg-blue-50', icon: Wallet },
+          { label: '🔨 Total Jasa Servis', value: formatRupiah(totalJasaAll), color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+          { label: '🔩 Penjualan Parts', value: formatRupiah(totalPartAll), color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+          { label: '📦 Modal / HPP Parts', value: formatRupiah(totalModal), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+          { label: '✅ Untung dari Parts', value: formatRupiah(untungParts), color: untungParts >= 0 ? 'text-green-700' : 'text-red-600', bg: 'bg-green-50', border: 'border-green-200' },
+          { label: '🛒 Pendapatan Kasir', value: formatRupiah(totalKasir), color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+          { label: '💸 Pengeluaran', value: formatRupiah(totalPengeluaran), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+          { label: '⚠️ Piutang Belum Lunas', value: formatRupiah(totalPiutang), color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
+          { label: '🏆 Total Pendapatan Bersih', value: formatRupiah(labaRekapan), color: labaRekapan >= 0 ? 'text-blue-800' : 'text-red-700', bg: 'bg-blue-50', border: 'border-blue-300' },
         ].map(c => (
-          <div key={c.label} className={`${c.bg} border rounded-xl p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <c.icon className={`w-4 h-4 ${c.color}`} />
-              <p className="text-xs text-gray-500">{c.label}</p>
-            </div>
-            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
+          <div key={c.label} className={`${c.bg} border ${c.border} rounded-xl p-4`}>
+            <p className="text-xs text-gray-500 mb-1">{c.label}</p>
+            <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
           </div>
         ))}
       </div>

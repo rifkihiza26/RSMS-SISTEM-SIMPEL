@@ -6,6 +6,15 @@ import { Users, Printer, Save } from 'lucide-react'
 import { generateExpenseNumber } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Baca motor dari notes rekapan (format: "[KECIL] Mekanik: X | Motor: Y | SUMBER: REKAPAN")
+function extractMotorFromNotes(notes: string | null, fallback: string | null): string {
+  if (notes) {
+    const m = notes.match(/Motor:\s*([^|]+)/i)
+    if (m) return m[1].trim()
+  }
+  return fallback || '-'
+}
+
 export function Payroll() {
   const qc = useQueryClient()
   const { user } = useAuth()
@@ -37,7 +46,7 @@ export function Payroll() {
         .from('transaction_items')
         .select(`
           id, item_name, item_type, subtotal,
-          transactions!inner( id, created_at, mechanic_id, motor_type, transaction_number )
+          transactions!inner( id, created_at, mechanic_id, motor_type, notes, transaction_number )
         `)
         .eq('transactions.mechanic_id', selectedMechanic)
         .gte('transactions.created_at', dateFrom + 'T00:00:00')
@@ -220,7 +229,9 @@ export function Payroll() {
                         <td className="px-4 py-2">
                           {new Date((item.transactions as any)?.created_at || '').toLocaleDateString('id-ID')}
                         </td>
-                        <td className="px-4 py-2 font-medium">{(item.transactions as any)?.motor_type || '-'}</td>
+                        <td className="px-4 py-2 font-medium">
+                          {extractMotorFromNotes((item.transactions as any)?.notes, (item.transactions as any)?.motor_type)}
+                        </td>
                         <td className="px-4 py-2 text-gray-600">{item.item_name}</td>
                         <td className="px-4 py-2 text-right font-semibold">{formatRupiah(item.subtotal)}</td>
                       </tr>
