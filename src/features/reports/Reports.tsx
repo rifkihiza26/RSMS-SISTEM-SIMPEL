@@ -102,6 +102,15 @@ function isRekapan(notes: string | null): boolean {
 export function Reports() {
   const { startDate, endDate, periodLabel, FilterUI } = useReportFilter()
   const [expandedMechanic, setExpandedMechanic] = useState<string | null>(null)
+  const [mechanicFilter, setMechanicFilter] = useState('ALL')
+
+  const { data: mechanics = [] } = useQuery({
+    queryKey: ['reports', 'mechanics'],
+    queryFn: async () => {
+      const { data } = await supabase.from('mechanics').select('name')
+      return data?.map(m => m.name) ?? []
+    }
+  })
 
   // Fetch ALL transactions in range (no status filter - rekapan doesn't have status)
   const { data: allTransactions = [], isLoading: trxLoading } = useQuery({
@@ -162,7 +171,7 @@ export function Reports() {
   }, [allItems])
 
   // Aggregate for rekapan
-  const rekapanWithDetail = rekapanTrx.map(t => {
+  let rekapanWithDetail = rekapanTrx.map(t => {
     const items = itemsByTrx[t.id] || []
     const jasaItems = items.filter(i => i.item_type === 'MANUAL_JASA')
     const partItems = items.filter(i => i.item_type === 'MANUAL_BARANG')
@@ -179,8 +188,12 @@ export function Reports() {
     }
   })
 
+  if (mechanicFilter !== 'ALL') {
+    rekapanWithDetail = rekapanWithDetail.filter(r => r.mekanik.toLowerCase() === mechanicFilter.toLowerCase())
+  }
+
   // Summary numbers
-  const totalRekapan = rekapanTrx.reduce((s, t) => s + t.total, 0)
+  const totalRekapan = rekapanWithDetail.reduce((s, t) => s + t.total, 0)
   const totalKasir = kasirTrx.reduce((s, t) => s + t.total, 0)
   const totalModal = rekapanWithDetail.reduce((s, t) => s + t.totalModal, 0)
   const totalUntung = rekapanWithDetail.reduce((s, t) => s + t.totalUntung, 0)
@@ -302,6 +315,7 @@ export function Reports() {
         </div>
       </div>
 
+      ${rekapanWithDetail.length > 0 ? `
       <div class="section">📋 DETAIL TRANSAKSI REKAPAN SERVIS</div>
       <table>
         <thead><tr>
@@ -310,20 +324,22 @@ export function Reports() {
           <th class="right">Modal</th><th class="right">Untung</th>
           <th class="right">Total</th><th class="center">Status</th>
         </tr></thead>
-        <tbody>${rekapanRows || '<tr><td colspan="10" style="text-align:center;padding:16px;color:#9ca3af;">Belum ada rekapan di periode ini</td></tr>'}</tbody>
-      </table>
+        <tbody>${rekapanRows}</tbody>
+      </table>` : ''}
 
+      ${kasirTrx.length > 0 ? `
       <div class="section">🧾 DETAIL TRANSAKSI KASIR (ECER)</div>
       <table>
         <thead><tr><th width="20%">Waktu</th><th width="30%">No. Nota</th><th width="30%">Metode Bayar</th><th width="20%" class="right">Total (Rp)</th></tr></thead>
-        <tbody>${kasirRows || '<tr><td colspan="4" style="text-align:center;padding:16px;color:#9ca3af;">Belum ada transaksi kasir di periode ini</td></tr>'}</tbody>
-      </table>
+        <tbody>${kasirRows}</tbody>
+      </table>` : ''}
 
+      ${expenses.length > 0 ? `
       <div class="section">💸 DETAIL PENGELUARAN</div>
       <table>
         <thead><tr><th width="20%">Tanggal</th><th width="25%">Kategori</th><th width="35%">Keterangan</th><th width="20%" class="right">Nominal (Rp)</th></tr></thead>
-        <tbody>${expenseRows || '<tr><td colspan="4" style="text-align:center;padding:16px;color:#9ca3af;">Tidak ada pengeluaran di periode ini</td></tr>'}</tbody>
-      </table>
+        <tbody>${expenseRows}</tbody>
+      </table>` : ''}
 
       <div style="margin-top:40px; font-size:11px; color:#999; text-align:center;">Dokumen ini digenerate secara otomatis oleh sistem RSMS pada ${new Date().toLocaleString('id-ID')}</div>
       <script>window.print();</script>
@@ -416,7 +432,26 @@ export function Reports() {
         </div>
       </div>
 
+      {/* FILTER DATE */}
       {FilterUI}
+
+      {/* FILTER MECHANIC */}
+      <div className="bg-white p-3 rounded-xl border shadow-sm flex items-center gap-3">
+        <span className="text-sm font-semibold text-gray-700">🔧 Filter Mekanik:</span>
+        <select
+          className="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 min-w-[160px]"
+          value={mechanicFilter}
+          onChange={e => setMechanicFilter(e.target.value)}
+        >
+          <option value="ALL">Semua Mekanik</option>
+          {mechanics.map(name => <option key={name} value={name}>{name}</option>)}
+        </select>
+        {mechanicFilter !== 'ALL' && (
+          <span className="text-sm text-blue-700 font-medium bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
+            Menampilkan data: {mechanicFilter}
+          </span>
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

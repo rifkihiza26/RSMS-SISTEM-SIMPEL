@@ -154,6 +154,26 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
   function downloadPDF() {
     const win = window.open('', '_blank')
     if (!win) return
+
+    const incomeRows = detailTransactions.map(tx => `
+      <tr>
+        <td>${new Date(tx.created_at).toLocaleString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</td>
+        <td>${tx.transaction_number}</td>
+        <td>${tx.customer_name || '-'}</td>
+        <td>${tx.notes || 'Transaksi Kasir'}</td>
+        <td class="right text-green bold">${formatRupiah(tx.total)}</td>
+      </tr>
+    `).join('');
+
+    const expenseRows = monthExpenses.map(ex => `
+      <tr>
+        <td>${new Date(ex.date).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
+        <td>${ex.category}</td>
+        <td>${ex.description || '-'}</td>
+        <td class="right text-red bold">${formatRupiah(ex.amount)}</td>
+      </tr>
+    `).join('');
+
     win.document.write(`
       <html><head><title>Buku Kas / Laporan - ${periodLabel}</title>
       <style>
@@ -207,6 +227,7 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
         </div>
       </div>
 
+      ${detailTransactions.length > 0 ? `
       <div class="section">DETAIL TRANSAKSI PEMASUKAN (INCOME)</div>
       <table>
         <thead>
@@ -219,19 +240,11 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
           </tr>
         </thead>
         <tbody>
-          ${detailTransactions.length === 0 ? '<tr><td colspan="5" class="center">Tidak ada transaksi pemasukan di periode ini</td></tr>' : ''}
-          ${detailTransactions.map(tx => `
-            <tr>
-              <td>${new Date(tx.created_at).toLocaleString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</td>
-              <td>${tx.transaction_number}</td>
-              <td>${tx.customer_name || '-'}</td>
-              <td>${tx.notes || 'Transaksi Kasir'}</td>
-              <td class="right text-green bold">${formatRupiah(tx.total)}</td>
-            </tr>
-          `).join('')}
+          ${incomeRows}
         </tbody>
-      </table>
+      </table>` : ''}
 
+      ${monthExpenses.length > 0 ? `
       <div class="section">DETAIL PENGELUARAN (OUTCOME)</div>
       <table>
         <thead>
@@ -243,17 +256,9 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
           </tr>
         </thead>
         <tbody>
-          ${monthExpenses.length === 0 ? '<tr><td colspan="4" class="center">Tidak ada pengeluaran di periode ini</td></tr>' : ''}
-          ${monthExpenses.map(ex => `
-            <tr>
-              <td>${new Date(ex.date).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
-              <td>${ex.category}</td>
-              <td>${ex.description || '-'}</td>
-              <td class="right text-red bold">${formatRupiah(ex.amount)}</td>
-            </tr>
-          `).join('')}
+          ${expenseRows}
         </tbody>
-      </table>
+      </table>` : ''}
 
       <div style="margin-top:40px; font-size:11px; color:#999; text-align:center;">Dokumen ini digenerate secara otomatis oleh sistem RSMS pada ${new Date().toLocaleString('id-ID')}</div>
       <script>window.print();</script>
