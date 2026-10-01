@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRupiah, formatDateShort } from '@/lib/utils'
-import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, XCircle, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, XCircle, Wallet, FileText, Sheet } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 function StatCard({ title, value, icon: Icon, color = 'blue', subtitle }: {
   title: string; value: string; icon: React.ElementType; color?: string; subtitle?: string
@@ -33,6 +34,7 @@ function StatCard({ title, value, icon: Icon, color = 'blue', subtitle }: {
 function AdminDashboard() {
   const today = new Date().toISOString().split('T')[0]
   const monthStart = today.slice(0, 7) + '-01'
+  const bulanLabel = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
 
   // Fetch Items Bulan Ini
   const { data: monthItems = [] } = useQuery({
@@ -48,7 +50,7 @@ function AdminDashboard() {
   const { data: monthExpenses = [] } = useQuery({
     queryKey: ['dashboard', 'expenses-month'],
     queryFn: async () => {
-      const { data } = await supabase.from('expenses').select('amount, category, date')
+      const { data } = await supabase.from('expenses').select('amount, category, date, description')
         .gte('date', monthStart)
       return data ?? []
     }
@@ -58,10 +60,10 @@ function AdminDashboard() {
   const totalJasa = monthItems.filter(i => ['SERVICE', 'MANUAL_JASA'].includes(i.item_type)).reduce((s, i) => s + (i.subtotal || 0), 0)
   const totalBarang = monthItems.filter(i => ['PRODUCT', 'MANUAL_BARANG', 'MANUAL'].includes(i.item_type)).reduce((s, i) => s + (i.subtotal || 0), 0)
   const totalModalBarang = monthItems.filter(i => ['PRODUCT', 'MANUAL_BARANG', 'MANUAL'].includes(i.item_type)).reduce((s, i) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
-  
+
   const totalGaji = monthExpenses.filter(e => e.category === 'Penggajian' || e.category === 'PENGGAJIAN').reduce((s, e) => s + (e.amount || 0), 0)
   const totalPengeluaranLain = monthExpenses.filter(e => e.category !== 'Penggajian' && e.category !== 'PENGGAJIAN').reduce((s, e) => s + (e.amount || 0), 0)
-  
+
   const profitKotor = totalJasa + (totalBarang - totalModalBarang)
   const profitBersih = profitKotor - (totalGaji + totalPengeluaranLain)
 
@@ -87,21 +89,137 @@ function AdminDashboard() {
   const lowStock = products.filter(p => p.stock > 0 && p.stock <= p.minimum_stock).length
   const outStock = products.filter(p => p.stock === 0).length
 
+  // ── DOWNLOAD PDF ──
+  function downloadPDF() {
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`
+      <html><head><title>Laporan Laba Rugi ${bulanLabel}</title>
+      <style>
+        body { font-family: sans-serif; padding: 32px; font-size: 13px; color: #111; }
+        h1 { font-size: 20px; margin-bottom: 4px; }
+        .sub { color: #666; margin-bottom: 20px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th { background: #1e293b; color: #fff; padding: 8px 12px; text-align: left; }
+        td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+        .right { text-align: right; }
+        .bold { font-weight: 700; }
+        .section { margin-top: 28px; font-size: 14px; font-weight: 700; color: #374151; border-bottom: 2px solid #374151; padding-bottom: 4px; margin-bottom: 8px; }
+        .total-row { background: #f1f5f9; }
+        .laba-row { background: #dcfce7; }
+        .rugi-row { background: #fee2e2; }
+      </style></head><body>
+      <h1>RAKYAT SINTING MATIC SHOP</h1>
+      <div class="sub">Laporan Laba Rugi — ${bulanLabel}</div>
+
+      <div class="section">PEMASUKAN</div>
+      <table>
+        <tr><th>Keterangan</th><th class="right">Jumlah</th></tr>
+        <tr><td>Pendapatan Jasa</td><td class="right">${formatRupiah(totalJasa)}</td></tr>
+        <tr><td>Pendapatan Barang / Part (Harga Jual)</td><td class="right">${formatRupiah(totalBarang)}</td></tr>
+        <tr class="total-row"><td class="bold">Total Pemasukan</td><td class="right bold">${formatRupiah(totalJasa + totalBarang)}</td></tr>
+      </table>
+
+      <div class="section">HPP & LABA KOTOR</div>
+      <table>
+        <tr><th>Keterangan</th><th class="right">Jumlah</th></tr>
+        <tr><td>Modal / HPP Barang</td><td class="right">${formatRupiah(totalModalBarang)}</td></tr>
+        <tr class="total-row"><td class="bold">Estimasi Laba Kotor</td><td class="right bold">${formatRupiah(profitKotor)}</td></tr>
+      </table>
+
+      <div class="section">PENGELUARAN</div>
+      <table>
+        <tr><th>Keterangan</th><th class="right">Jumlah</th></tr>
+        <tr><td>Penggajian Mekanik</td><td class="right">${formatRupiah(totalGaji)}</td></tr>
+        <tr><td>Operasional Bengkel</td><td class="right">${formatRupiah(totalPengeluaranLain)}</td></tr>
+        <tr class="total-row"><td class="bold">Total Pengeluaran</td><td class="right bold">${formatRupiah(totalGaji + totalPengeluaranLain)}</td></tr>
+      </table>
+
+      <div class="section">RINGKASAN</div>
+      <table>
+        <tr class="${profitBersih >= 0 ? 'laba-row' : 'rugi-row'}">
+          <td class="bold" style="font-size:16px;">LABA BERSIH</td>
+          <td class="right bold" style="font-size:16px;">${formatRupiah(profitBersih)}</td>
+        </tr>
+      </table>
+
+      <div style="margin-top:40px; font-size:11px; color:#999;">Dicetak pada: ${new Date().toLocaleString('id-ID')}</div>
+      <script>window.print();</script>
+      </body></html>
+    `)
+    win.document.close()
+  }
+
+  // ── DOWNLOAD EXCEL ──
+  function downloadExcel() {
+    const wb = XLSX.utils.book_new()
+
+    // Sheet 1: Laba Rugi
+    const labaData = [
+      ['LAPORAN LABA RUGI - RAKYAT SINTING MATIC SHOP'],
+      [`Periode: ${bulanLabel}`],
+      [],
+      ['=== PEMASUKAN ==='],
+      ['Keterangan', 'Jumlah (Rp)'],
+      ['Pendapatan Jasa', totalJasa],
+      ['Pendapatan Barang / Part', totalBarang],
+      ['TOTAL PEMASUKAN', totalJasa + totalBarang],
+      [],
+      ['=== HPP & LABA KOTOR ==='],
+      ['Modal / HPP Barang', totalModalBarang],
+      ['ESTIMASI LABA KOTOR', profitKotor],
+      [],
+      ['=== PENGELUARAN ==='],
+      ['Penggajian Mekanik', totalGaji],
+      ['Operasional Bengkel', totalPengeluaranLain],
+      ['TOTAL PENGELUARAN', totalGaji + totalPengeluaranLain],
+      [],
+      ['=== RINGKASAN ==='],
+      ['LABA BERSIH', profitBersih],
+    ]
+    const ws1 = XLSX.utils.aoa_to_sheet(labaData)
+    ws1['!cols'] = [{ wch: 40 }, { wch: 20 }]
+    XLSX.utils.book_append_sheet(wb, ws1, 'Laba Rugi')
+
+    // Sheet 2: Detail Pengeluaran
+    const expRows = [
+      ['DETAIL PENGELUARAN', 'Kategori', 'Tanggal', 'Jumlah (Rp)'],
+      ...monthExpenses.map(e => [e.description || '-', e.category, e.date, e.amount])
+    ]
+    const ws2 = XLSX.utils.aoa_to_sheet(expRows)
+    ws2['!cols'] = [{ wch: 40 }, { wch: 20 }, { wch: 14 }, { wch: 16 }]
+    XLSX.utils.book_append_sheet(wb, ws2, 'Detail Pengeluaran')
+
+    XLSX.writeFile(wb, `Laporan-${bulanLabel.replace(' ', '-')}.xlsx`)
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Owner / Admin</h1>
-        <p className="text-sm text-gray-500 mt-1">Laporan Laba Rugi & Rekap Bulan Ini ({formatDateShort(new Date())})</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard Owner / Admin</h1>
+          <p className="text-sm text-gray-500 mt-1">Laporan Laba Rugi & Rekap Bulan Ini ({formatDateShort(new Date())})</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={downloadPDF}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
+            <FileText className="w-4 h-4" /> Download PDF
+          </button>
+          <button onClick={downloadExcel}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
+            <Sheet className="w-4 h-4" /> Download Excel
+          </button>
+        </div>
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Laba Rugi Bulan Ini</h2>
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Laba Rugi Bulan Ini — {bulanLabel}</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard title="Pemasukan Jasa" value={formatRupiah(totalJasa)} icon={TrendingUp} color="blue" />
           <StatCard title="Pemasukan Barang" value={formatRupiah(totalBarang)} icon={Package} color="blue" />
           <StatCard title="Total Pemasukan" value={formatRupiah(totalJasa + totalBarang)} icon={Wallet} color="green" />
           <StatCard title="Estimasi Laba Kotor" value={formatRupiah(profitKotor)} icon={TrendingUp} color="green" subtitle="Pemasukan - Modal Barang" />
-          
+
           <StatCard title="Pengeluaran Gaji" value={formatRupiah(totalGaji)} icon={TrendingDown} color="orange" />
           <StatCard title="Pengeluaran Operasional" value={formatRupiah(totalPengeluaranLain)} icon={TrendingDown} color="orange" />
           <StatCard title="Total Pengeluaran" value={formatRupiah(totalGaji + totalPengeluaranLain)} icon={Wallet} color="red" />
@@ -159,7 +277,6 @@ function KasirDashboard() {
   const { data: stats } = useQuery({
     queryKey: ['dashboard', 'kasir-stats', today],
     queryFn: async () => {
-      // Gunakan offset WIB (UTC+7) agar rentang tanggal cocok dengan waktu lokal
       const { data: trxs } = await supabase.from('transactions')
         .select('total, payment_method')
         .in('status', ['COMPLETED', 'PAID'])
@@ -176,7 +293,7 @@ function KasirDashboard() {
     }
   })
 
-    return (
+  return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard Kasir</h1>
