@@ -1,9 +1,11 @@
-import { useState } from 'react'
+const fs = require('fs');
+
+const code = `import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRupiah, generateTransactionNumber, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils'
-import { Plus, Trash2, Wrench, Package, Save, CheckCircle, Printer } from 'lucide-react'
+import { Plus, Trash2, Wrench, Package, Save, CheckCircle, Printer, FileText, Search } from 'lucide-react'
 
 type RecapJasa = { id: string; name: string; price: string }
 type RecapBarang = { id: string; name: string; priceModal: string; priceJual: string; qty: string }
@@ -18,8 +20,8 @@ function printRecapReceipt(trx: any, jasaList: any[], barangList: any[], totalJa
   const isLunas = trx.payment_status === 'LUNAS'
   const sisa = totalAkhir - trx.amount_paid
   
-  win.document.write(`
-    <html><head><title>Nota Servis - ${trx.transaction_number}</title>
+  win.document.write(\`
+    <html><head><title>Nota Servis - \${trx.transaction_number}</title>
     <style>
       body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; color: #333; max-width: 800px; margin: 0 auto; line-height: 1.5; }
       .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #222; padding-bottom: 15px; }
@@ -53,15 +55,15 @@ function printRecapReceipt(trx: any, jasaList: any[], barangList: any[], totalJa
       
       <div class="info-grid">
         <div class="info-box">
-          <div class="info-row"><span class="info-label">No. Nota:</span> <span class="info-val">${trx.transaction_number}</span></div>
-          <div class="info-row"><span class="info-label">Tanggal:</span> <span class="info-val">${new Date(trx.created_at).toLocaleString('id-ID')}</span></div>
-          <div class="info-row"><span class="info-label">Mekanik:</span> <span class="info-val">${trx.mechanicName || '-'}</span></div>
+          <div class="info-row"><span class="info-label">No. Nota:</span> <span class="info-val">\${trx.transaction_number}</span></div>
+          <div class="info-row"><span class="info-label">Tanggal:</span> <span class="info-val">\${new Date(trx.created_at).toLocaleString('id-ID')}</span></div>
+          <div class="info-row"><span class="info-label">Mekanik:</span> <span class="info-val">\${trx.mechanicName || '-'}</span></div>
         </div>
         <div class="info-box">
-          <div class="info-row"><span class="info-label">Pelanggan:</span> <span class="info-val">${trx.customer_name || '-'}</span></div>
-          <div class="info-row"><span class="info-label">Motor:</span> <span class="info-val">${trx.motor}</span></div>
+          <div class="info-row"><span class="info-label">Pelanggan:</span> <span class="info-val">\${trx.customer_name || '-'}</span></div>
+          <div class="info-row"><span class="info-label">Motor:</span> <span class="info-val">\${trx.motor}</span></div>
           <div class="info-row"><span class="info-label">Status Bayar:</span> 
-            <span class="status-badge ${isLunas ? 'st-lunas' : trx.amount_paid > 0 ? 'st-dp' : 'st-belum'}">${trx.payment_status}</span>
+            <span class="status-badge \${isLunas ? 'st-lunas' : trx.amount_paid > 0 ? 'st-dp' : 'st-belum'}">\${trx.payment_status}</span>
           </div>
         </div>
       </div>
@@ -76,40 +78,40 @@ function printRecapReceipt(trx: any, jasaList: any[], barangList: any[], totalJa
           </tr>
         </thead>
         <tbody>
-          ${jasaList.map(j => `
+          \${jasaList.map(j => \`
             <tr>
-              <td>[Jasa] ${j.name}</td>
+              <td>[Jasa] \${j.name}</td>
               <td class="right">-</td>
-              <td class="right">${formatRupiah(parseInt(j.price))}</td>
-              <td class="right">${formatRupiah(parseInt(j.price))}</td>
+              <td class="right">\${formatRupiah(parseInt(j.price))}</td>
+              <td class="right">\${formatRupiah(parseInt(j.price))}</td>
             </tr>
-          `).join('')}
-          ${barangList.map(b => `
+          \`).join('')}
+          \${barangList.map(b => \`
             <tr>
-              <td>[Part] ${b.name}</td>
-              <td class="right">${b.qty}</td>
-              <td class="right">${formatRupiah(parseInt(b.priceJual))}</td>
-              <td class="right">${formatRupiah(parseInt(b.priceJual) * parseInt(b.qty))}</td>
+              <td>[Part] \${b.name}</td>
+              <td class="right">\${b.qty}</td>
+              <td class="right">\${formatRupiah(parseInt(b.priceJual))}</td>
+              <td class="right">\${formatRupiah(parseInt(b.priceJual) * parseInt(b.qty))}</td>
             </tr>
-          `).join('')}
+          \`).join('')}
         </tbody>
       </table>
 
       <div class="totals-box">
-        <div class="total-row"><span>Total Jasa:</span> <span>${formatRupiah(totalJasa)}</span></div>
-        <div class="total-row"><span>Total Parts:</span> <span>${formatRupiah(totalPart)}</span></div>
-        <div class="total-row grand"><span>TOTAL TAGIHAN:</span> <span>${formatRupiah(totalAkhir)}</span></div>
-        <div class="total-row paid" style="margin-top: 15px;"><span>Telah Dibayar:</span> <span>${formatRupiah(trx.amount_paid)}</span></div>
-        ${!isLunas ? `<div class="total-row debt"><span>SISA KEKURANGAN:</span> <span>${formatRupiah(sisa)}</span></div>` : ''}
+        <div class="total-row"><span>Total Jasa:</span> <span>\${formatRupiah(totalJasa)}</span></div>
+        <div class="total-row"><span>Total Parts:</span> <span>\${formatRupiah(totalPart)}</span></div>
+        <div class="total-row grand"><span>TOTAL TAGIHAN:</span> <span>\${formatRupiah(totalAkhir)}</span></div>
+        <div class="total-row paid" style="margin-top: 15px;"><span>Telah Dibayar:</span> <span>\${formatRupiah(trx.amount_paid)}</span></div>
+        \${!isLunas ? \`<div class="total-row debt"><span>SISA KEKURANGAN:</span> <span>\${formatRupiah(sisa)}</span></div>\` : ''}
       </div>
 
       <div class="footer">
         <p>Terima kasih telah mempercayakan kendaraan Anda pada RSMS!</p>
-        <p>Dicetak pada: ${new Date().toLocaleString('id-ID')}</p>
+        <p>Dicetak pada: \${new Date().toLocaleString('id-ID')}</p>
       </div>
       <script>window.print();</script>
     </body></html>
-  `)
+  \`)
   win.document.close()
 }
 
@@ -180,8 +182,8 @@ function AdminRecapsManager() {
     setIsSaving(true)
     try {
       const mechanicName = mechanics.find(m => m.id === mechanicId)?.name || 'Unknown'
-      const notes = `[${notaType}] Mekanik: ${mechanicName} | Motor: ${motorType} | SUMBER: REKAPAN`
-      const trxNumber = generateTransactionNumber()
+      const notes = \`[\${notaType}] Mekanik: \${mechanicName} | Motor: \${motorType} | SUMBER: REKAPAN\`
+      const trxNumber = generateTransactionNumber(notaType)
 
       const { data: trxData, error: trxError } = await supabase.from('transactions').insert({
         transaction_number: trxNumber,
@@ -288,12 +290,12 @@ function AdminRecapsManager() {
         <div className="flex bg-gray-100 p-1 rounded-xl">
           <button 
             onClick={() => setActiveTab('BUAT')} 
-            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'BUAT' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={\`px-6 py-2 rounded-lg text-sm font-semibold transition-all \${activeTab === 'BUAT' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}\`}>
             Buat Rekapan
           </button>
           <button 
             onClick={() => setActiveTab('DAFTAR')} 
-            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'DAFTAR' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={\`px-6 py-2 rounded-lg text-sm font-semibold transition-all \${activeTab === 'DAFTAR' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}\`}>
             Daftar & Piutang
           </button>
         </div>
@@ -454,13 +456,13 @@ function AdminRecapsManager() {
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
                     <div className="text-xs text-gray-400">Sisa Tagihan / Hutang</div>
-                    <div className={`font-bold text-lg mt-1 ${sisaTagihan > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    <div className={\`font-bold text-lg mt-1 \${sisaTagihan > 0 ? 'text-red-400' : 'text-green-400'}\`}>
                       {formatRupiah(sisaTagihan > 0 ? sisaTagihan : 0)}
                     </div>
                   </div>
                   <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
                     <div className="text-xs text-gray-400">Status Pembayaran</div>
-                    <div className={`font-bold text-lg mt-1 ${paymentStatus === 'LUNAS' ? 'text-green-400' : paymentStatus === 'DP' ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <div className={\`font-bold text-lg mt-1 \${paymentStatus === 'LUNAS' ? 'text-green-400' : paymentStatus === 'DP' ? 'text-yellow-400' : 'text-red-400'}\`}>
                       {paymentStatus === 'LUNAS' ? 'LUNAS' : paymentStatus === 'DP' ? 'DP' : 'BELUM BAYAR'}
                     </div>
                   </div>
@@ -662,3 +664,5 @@ export function Recaps() {
   if (isOwner) return <OwnerRecapsList />
   return <AdminRecapsManager />
 }
+`;
+fs.writeFileSync('src/features/recaps/Recaps.tsx', code);
