@@ -296,17 +296,17 @@ export function Reports() {
         <h2 style="margin-top:0; margin-bottom:16px; font-size:16px;">Ringkasan Pendapatan</h2>
         <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom: 0;">
           <tbody>
-            <tr><td style="padding:7px 0; color:#555;">🔨 Total Jasa Servis</td><td style="text-align:right; font-weight:bold; color:#16a34a;">${formatRupiah(totalJasaAll)}</td></tr>
-            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">🔩 Penjualan Parts (Bruto)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(totalPartAll)}</td></tr>
-            <tr><td style="padding:7px 0; color:#555;">🛒 Pendapatan Kasir</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
-            <tr><td style="padding:7px 0; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">💰 TOTAL PEMASUKAN KOTOR</td><td style="text-align:right; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">${formatRupiah(totalPemasukanKotor)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">Total Jasa Servis</td><td style="text-align:right; font-weight:bold; color:#16a34a;">${formatRupiah(totalJasaAll)}</td></tr>
+            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Penjualan Parts (Bruto)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(totalPartAll)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">Pendapatan Kasir</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
+            <tr><td style="padding:7px 0; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">TOTAL PEMASUKAN KOTOR</td><td style="text-align:right; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">${formatRupiah(totalPemasukanKotor)}</td></tr>
             
-            <tr><td style="padding:7px 0; color:#555;">📦 Modal / HPP Parts</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalModal)}</td></tr>
-            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">✅ Untung dari Parts</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(untungParts)}</td></tr>
-            <tr><td style="padding:7px 0; color:#555;">💸 Pengeluaran</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalPengeluaran)}</td></tr>
-            ${totalPiutang > 0 ? `<tr><td style="padding:7px 0; color:#555;">⚠️ Piutang Belum Lunas</td><td style="text-align:right; font-weight:bold; color:#ea580c;">${formatRupiah(totalPiutang)}</td></tr>` : ''}
+            <tr><td style="padding:7px 0; color:#555;">Modal / HPP Parts</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalModal)}</td></tr>
+            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Untung dari Parts</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(untungParts)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">Pengeluaran</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalPengeluaran)}</td></tr>
+            ${totalPiutang > 0 ? `<tr><td style="padding:7px 0; color:#555;">Piutang Belum Lunas</td><td style="text-align:right; font-weight:bold; color:#ea580c;">${formatRupiah(totalPiutang)}</td></tr>` : ''}
             <tr>
-              <td style="padding:12px 0 8px; border-top:2px solid #1f2937; font-size:16px; font-weight:bold; color:#111;">🏆 TOTAL PENDAPATAN BERSIH</td>
+              <td style="padding:12px 0 8px; border-top:2px solid #1f2937; font-size:16px; font-weight:bold; color:#111;">TOTAL PENDAPATAN BERSIH</td>
               <td style="text-align:right; font-size:18px; font-weight:bold; border-top:2px solid #1f2937; color:${labaRekapan >= 0 ? '#1d4ed8' : '#dc2626'}">${formatRupiah(labaRekapan)}</td>
             </tr>
           </tbody>
@@ -333,7 +333,7 @@ export function Reports() {
       </table>` : ''}
 
       ${expenses.length > 0 ? `
-      <div class="section">💸 DETAIL PENGELUARAN</div>
+      <div class="section">DETAIL PENGELUARAN</div>
       <table>
         <thead><tr><th width="20%">Tanggal</th><th width="25%">Kategori</th><th width="35%">Keterangan</th><th width="20%" class="right">Nominal (Rp)</th></tr></thead>
         <tbody>${expenseRows}</tbody>
@@ -454,14 +454,14 @@ export function Reports() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: '🔨 Total Jasa Servis', value: formatRupiah(totalJasaAll), color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
-          { label: '🔩 Penjualan Parts', value: formatRupiah(totalPartAll), color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
-          { label: '📦 Modal / HPP Parts', value: formatRupiah(totalModal), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
-          { label: '✅ Untung dari Parts', value: formatRupiah(untungParts), color: untungParts >= 0 ? 'text-green-700' : 'text-red-600', bg: 'bg-green-50', border: 'border-green-200' },
-          { label: '🛒 Pendapatan Kasir', value: formatRupiah(totalKasir), color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
-          { label: '💸 Pengeluaran', value: formatRupiah(totalPengeluaran), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
-          { label: '⚠️ Piutang Belum Lunas', value: formatRupiah(totalPiutang), color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
-          { label: '🏆 Total Pendapatan Bersih', value: formatRupiah(labaRekapan), color: labaRekapan >= 0 ? 'text-blue-800' : 'text-red-700', bg: 'bg-blue-50', border: 'border-blue-300' },
+          { label: 'Total Jasa Servis', value: formatRupiah(totalJasaAll), color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+          { label: 'Penjualan Parts', value: formatRupiah(totalPartAll), color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+          { label: 'Modal / HPP Parts', value: formatRupiah(totalModal), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+          { label: 'Untung dari Parts', value: formatRupiah(untungParts), color: untungParts >= 0 ? 'text-green-700' : 'text-red-600', bg: 'bg-green-50', border: 'border-green-200' },
+          { label: 'Pendapatan Kasir', value: formatRupiah(totalKasir), color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+          { label: 'Pengeluaran', value: formatRupiah(totalPengeluaran), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+          { label: 'Piutang Belum Lunas', value: formatRupiah(totalPiutang), color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
+          { label: 'Total Pendapatan Bersih', value: formatRupiah(labaRekapan), color: labaRekapan >= 0 ? 'text-blue-800' : 'text-red-700', bg: 'bg-blue-50', border: 'border-blue-300' },
         ].map(c => (
           <div key={c.label} className={`${c.bg} border ${c.border} rounded-xl p-4`}>
             <p className="text-xs text-gray-500 mb-1">{c.label}</p>
