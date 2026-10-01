@@ -214,7 +214,7 @@ function OwnerAdminDashboard({ role }: { role: 'ADMIN' | 'OWNER' }) {
 
       <div>
         <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Bulan Ini — {bulanLabel}</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard title="Pemasukan Jasa" value={formatRupiah(totalJasa)} icon={TrendingUp} color="blue" />
           <StatCard title="Pemasukan Barang" value={formatRupiah(totalBarang)} icon={Package} color="blue" />
           <StatCard title="Total Pemasukan" value={formatRupiah(totalJasa + totalBarang)} icon={Wallet} color="green" />
@@ -231,7 +231,7 @@ function OwnerAdminDashboard({ role }: { role: 'ADMIN' | 'OWNER' }) {
         <>
           <div>
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Stok Produk</h2>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <StatCard title="Total Produk" value={String(totalProducts)} icon={Package} color="blue" />
               <StatCard title="Stok Menipis" value={String(lowStock)} icon={AlertTriangle} color="orange" />
               <StatCard title="Stok Habis" value={String(outStock)} icon={XCircle} color="red" />
@@ -304,7 +304,7 @@ function KasirDashboard() {
         <p className="text-sm text-gray-500 mt-1">{formatDateShort(new Date())}</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard title="Penjualan Hari Ini" value={formatRupiah(stats?.total ?? 0)} icon={TrendingUp} color="green" />
         <StatCard title="Jumlah Transaksi" value={String(stats?.count ?? 0)} icon={ShoppingCart} color="blue" />
         <StatCard title="Cash" value={formatRupiah(stats?.cash ?? 0)} icon={Wallet} color="purple" />
