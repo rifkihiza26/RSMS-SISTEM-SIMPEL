@@ -1,5 +1,7 @@
 const fs = require('fs');
-let content = fs.readFileSync('src/features/cashier/Cashier.tsx', 'utf-8');
-content = content.replace(/type Mechanic = \{ id: string; name: string \}\n/g, '');
-content = content.replace(/const mechanicName = ''\n/g, '');
-fs.writeFileSync('src/features/cashier/Cashier.tsx', content);
+let content = fs.readFileSync('src/features/dashboard/Dashboard.tsx', 'utf-8');
+
+content = content.replace("FileText, Sheet, ClipboardList }", "FileText, Sheet }");
+content = content.replace("const { bulanLabel, totalJasa,", "const { totalJasa,");
+
+fs.writeFileSync('src/features/dashboard/Dashboard.tsx', content);

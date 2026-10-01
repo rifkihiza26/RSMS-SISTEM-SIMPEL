@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+const fs = require('fs');
+
+const code = `import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRupiah, formatDateShort } from '@/lib/utils'
-import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, XCircle, Wallet, FileText, Sheet } from 'lucide-react'
+import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, XCircle, Wallet, FileText, Sheet, ClipboardList } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 function StatCard({ title, value, icon: Icon, color = 'blue', subtitle, big = false }: {
@@ -20,11 +22,11 @@ function StatCard({ title, value, icon: Icon, color = 'blue', subtitle, big = fa
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0 pr-2">
           <p className="text-sm text-gray-500 font-medium truncate">{title}</p>
-          <p className={`${big ? 'text-3xl' : 'text-xl sm:text-2xl'} font-bold text-gray-900 mt-1 truncate`} title={value}>{value}</p>
+          <p className={\`\${big ? 'text-3xl' : 'text-xl sm:text-2xl'} font-bold text-gray-900 mt-1 truncate\`} title={value}>{value}</p>
           {subtitle && <p className="text-xs text-gray-400 mt-1 truncate">{subtitle}</p>}
         </div>
-        <div className={`p-2.5 rounded-lg ${colors[color]} flex-shrink-0 ml-3`}>
-          <Icon className={`${big ? 'h-8 w-8' : 'h-5 w-5'}`} />
+        <div className={\`p-2.5 rounded-lg \${colors[color]} flex-shrink-0 ml-3\`}>
+          <Icon className={\`\${big ? 'h-8 w-8' : 'h-5 w-5'}\`} />
         </div>
       </div>
     </div>
@@ -67,8 +69,8 @@ function useDashboardData() {
   function downloadPDF() {
     const win = window.open('', '_blank')
     if (!win) return
-    win.document.write(`
-      <html><head><title>Laporan Laba Rugi ${bulanLabel}</title>
+    win.document.write(\`
+      <html><head><title>Laporan Laba Rugi \${bulanLabel}</title>
       <style>
         body { font-family: sans-serif; padding: 32px; font-size: 13px; color: #111; }
         h1 { font-size: 20px; margin-bottom: 4px; }
@@ -84,43 +86,43 @@ function useDashboardData() {
         .rugi-row { background: #fee2e2; }
       </style></head><body>
       <h1>RAKYAT SINTING MATIC SHOP</h1>
-      <div class="sub">Laporan Laba Rugi — ${bulanLabel}</div>
+      <div class="sub">Laporan Laba Rugi — \${bulanLabel}</div>
 
       <div class="section">PEMASUKAN</div>
       <table>
         <tr><th>Keterangan</th><th class="right">Jumlah</th></tr>
-        <tr><td>Pendapatan Jasa</td><td class="right">${formatRupiah(totalJasa)}</td></tr>
-        <tr><td>Pendapatan Barang / Part (Harga Jual)</td><td class="right">${formatRupiah(totalBarang)}</td></tr>
-        <tr class="total-row"><td class="bold">Total Pemasukan</td><td class="right bold">${formatRupiah(totalJasa + totalBarang)}</td></tr>
+        <tr><td>Pendapatan Jasa</td><td class="right">\${formatRupiah(totalJasa)}</td></tr>
+        <tr><td>Pendapatan Barang / Part (Harga Jual)</td><td class="right">\${formatRupiah(totalBarang)}</td></tr>
+        <tr class="total-row"><td class="bold">Total Pemasukan</td><td class="right bold">\${formatRupiah(totalJasa + totalBarang)}</td></tr>
       </table>
 
       <div class="section">HPP & LABA KOTOR</div>
       <table>
         <tr><th>Keterangan</th><th class="right">Jumlah</th></tr>
-        <tr><td>Modal / HPP Barang</td><td class="right">${formatRupiah(totalModalBarang)}</td></tr>
-        <tr class="total-row"><td class="bold">Estimasi Laba Kotor</td><td class="right bold">${formatRupiah(profitKotor)}</td></tr>
+        <tr><td>Modal / HPP Barang</td><td class="right">\${formatRupiah(totalModalBarang)}</td></tr>
+        <tr class="total-row"><td class="bold">Estimasi Laba Kotor</td><td class="right bold">\${formatRupiah(profitKotor)}</td></tr>
       </table>
 
       <div class="section">PENGELUARAN</div>
       <table>
         <tr><th>Keterangan</th><th class="right">Jumlah</th></tr>
-        <tr><td>Penggajian Mekanik</td><td class="right">${formatRupiah(totalGaji)}</td></tr>
-        <tr><td>Operasional Bengkel</td><td class="right">${formatRupiah(totalPengeluaranLain)}</td></tr>
-        <tr class="total-row"><td class="bold">Total Pengeluaran</td><td class="right bold">${formatRupiah(totalGaji + totalPengeluaranLain)}</td></tr>
+        <tr><td>Penggajian Mekanik</td><td class="right">\${formatRupiah(totalGaji)}</td></tr>
+        <tr><td>Operasional Bengkel</td><td class="right">\${formatRupiah(totalPengeluaranLain)}</td></tr>
+        <tr class="total-row"><td class="bold">Total Pengeluaran</td><td class="right bold">\${formatRupiah(totalGaji + totalPengeluaranLain)}</td></tr>
       </table>
 
       <div class="section">RINGKASAN</div>
       <table>
-        <tr class="${profitBersih >= 0 ? 'laba-row' : 'rugi-row'}">
+        <tr class="\${profitBersih >= 0 ? 'laba-row' : 'rugi-row'}">
           <td class="bold" style="font-size:16px;">LABA BERSIH</td>
-          <td class="right bold" style="font-size:16px;">${formatRupiah(profitBersih)}</td>
+          <td class="right bold" style="font-size:16px;">\${formatRupiah(profitBersih)}</td>
         </tr>
       </table>
 
-      <div style="margin-top:40px; font-size:11px; color:#999;">Dicetak pada: ${new Date().toLocaleString('id-ID')}</div>
+      <div style="margin-top:40px; font-size:11px; color:#999;">Dicetak pada: \${new Date().toLocaleString('id-ID')}</div>
       <script>window.print();</script>
       </body></html>
-    `)
+    \`)
     win.document.close()
   }
 
@@ -128,7 +130,7 @@ function useDashboardData() {
     const wb = XLSX.utils.book_new()
     const labaData = [
       ['LAPORAN LABA RUGI - RAKYAT SINTING MATIC SHOP'],
-      [`Periode: ${bulanLabel}`],
+      [\`Periode: \${bulanLabel}\`],
       [],
       ['=== PEMASUKAN ==='],
       ['Keterangan', 'Jumlah (Rp)'],
@@ -160,7 +162,7 @@ function useDashboardData() {
     ws2['!cols'] = [{ wch: 40 }, { wch: 20 }, { wch: 14 }, { wch: 16 }]
     XLSX.utils.book_append_sheet(wb, ws2, 'Detail Pengeluaran')
 
-    XLSX.writeFile(wb, `Laporan-${bulanLabel.replace(' ', '-')}.xlsx`)
+    XLSX.writeFile(wb, \`Laporan-\${bulanLabel.replace(' ', '-')}.xlsx\`)
   }
 
   return { 
@@ -174,7 +176,7 @@ function useDashboardData() {
 // OWNER DASHBOARD (Helicopter View)
 // ------------------------------------------
 function OwnerDashboard() {
-  const { totalJasa, totalBarang, totalGaji, totalPengeluaranLain, profitBersih, downloadPDF, downloadExcel } = useDashboardData()
+  const { bulanLabel, totalJasa, totalBarang, totalGaji, totalPengeluaranLain, profitBersih, downloadPDF, downloadExcel } = useDashboardData()
 
   // Fetch only Recaps (transactions containing REKAPAN in notes)
   const { data: recentRecaps = [] } = useQuery({
@@ -193,7 +195,7 @@ function OwnerDashboard() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard Owner</h1>
-          <p className="text-sm text-gray-500 mt-1">Ringkasan Bisnis Bulan Ini — ${formatDateShort(new Date())}</p>
+          <p className="text-sm text-gray-500 mt-1">Ringkasan Bisnis Bulan Ini — \${formatDateShort(new Date())}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={downloadPDF} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
@@ -398,3 +400,6 @@ export function Dashboard() {
   if (isAdmin) return <AdminDashboard />
   return <KasirDashboard />
 }
+`
+
+fs.writeFileSync('src/features/dashboard/Dashboard.tsx', code);
