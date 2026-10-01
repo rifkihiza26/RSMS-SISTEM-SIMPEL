@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Outlet, Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useAuth } from '@/contexts/AuthContext'
 import {
-  LayoutDashboard, ShoppingCart, ListOrdered, Wallet, Receipt,
+  LayoutDashboard, ShoppingCart, ListOrdered, Wallet, Receipt, ClipboardList, Banknote,
   Package, PenTool, Box, RefreshCw, Users, FileText, Settings,
   LogOut, Menu, ChevronRight,
 } from 'lucide-react'
@@ -12,10 +12,12 @@ type NavItem = { name: string; href: string; icon: React.ElementType; roles: ('A
 const navItems: NavItem[] = [
   { name: 'Dashboard',   href: '/dashboard',    icon: LayoutDashboard, roles: ['ADMIN', 'KASIR', 'OWNER'] },
   { name: 'Kasir',       href: '/cashier',      icon: ShoppingCart,    roles: ['ADMIN', 'KASIR'] },
+  { name: 'Rekapan',     href: '/recaps',       icon: ClipboardList,   roles: ['ADMIN', 'OWNER'] },
   { name: 'Transaksi',   href: '/transactions', icon: ListOrdered,     roles: ['ADMIN', 'KASIR'] },
   { name: 'Pemasukan',   href: '/income',       icon: Wallet,          roles: ['ADMIN', 'OWNER'] },
   { name: 'Pengeluaran', href: '/expenses',     icon: Receipt,         roles: ['ADMIN', 'OWNER'] },
   { name: 'Laporan',     href: '/reports',      icon: FileText,        roles: ['OWNER', 'ADMIN'] },
+  { name: 'Penggajian',  href: '/payroll',      icon: Banknote,        roles: ['OWNER', 'ADMIN'] },
   { name: 'Produk',      href: '/products',     icon: Package,         roles: ['ADMIN'] },
   { name: 'Jasa',        href: '/services',     icon: PenTool,         roles: ['ADMIN'] },
   { name: 'Stok',        href: '/inventory',    icon: Box,             roles: ['ADMIN'] },

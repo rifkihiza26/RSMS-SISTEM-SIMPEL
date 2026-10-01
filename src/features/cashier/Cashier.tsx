@@ -25,7 +25,6 @@ type CartItem = {
 
 type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null; product_categories?: { name: string } | { name: string }[] | null }
 type Service = { id: string; service_code: string; name: string; selling_price: number }
-type Mechanic = { id: string; name: string }
 
 type CompletedTransaction = {
   transaction_number: string
@@ -214,14 +213,7 @@ export function Cashier() {
     }
   })
 
-  const { data: mechanics = [] } = useQuery({
-    queryKey: ['mechanics-active'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('mechanics').select('id,name').order('name')
-      if (error) console.error("Mechanics Error:", error)
-      return (data ?? []) as Mechanic[]
-    }
-  })
+
 
   const productCategories = ['Semua', ...Array.from(new Set(products.map(p => ((Array.isArray(p.product_categories) ? p.product_categories[0]?.name : p.product_categories?.name) || '')).filter(Boolean)))]
   const serviceCategories = ['Semua']
@@ -378,8 +370,7 @@ export function Cashier() {
       setProcessing(false); return updateSession({ txError: 'Gagal sinkronisasi: ' + syncErr.message })
     }
 
-    const mechanicName = mechanics.find(m => m.id === selectedMechanicId)?.name || ''
-    const notes = `[${notaType ?? 'KECIL'}] ` + [mechanicName ? `Mekanik: ${mechanicName}` : '', motorType ? `Motor: ${motorType}` : ''].filter(Boolean).join(' | ')
+        const notes = `[KECIL]`
 
     const { error } = await supabase.rpc('pay_open_bill', {
       p_tx_id: session.id,
@@ -413,7 +404,7 @@ export function Cashier() {
     qc.invalidateQueries({ queryKey: ['cashier-products'] })
     qc.invalidateQueries({ queryKey: ['transactions'] })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
-    const mechName = mechanics.find(m => m.id === selectedMechanicId)?.name ?? '-'
+    const mechName = '-'
     updateSession({
       completed: { transaction_number: trxNumber, total, subtotal, discount, payment_method: paymentMethod, change_amount: paymentMethod === 'CASH' ? paid - total : 0, items: cart, mechanic_name: mechName, motor_type: motorType }
     })
@@ -781,26 +772,7 @@ export function Cashier() {
           )}
         </div>
 
-        {/* Nota Type Toggle */}
-        {!completed && (
-          <div className="px-4 py-2 border-b bg-gray-50">
-            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1.5">Jenis Nota</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                onClick={() => updateSession({ notaType: 'KECIL' })}
-                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${(notaType ?? 'KECIL') === 'KECIL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-              >
-                🔧 Nota Kecil
-              </button>
-              <button
-                onClick={() => updateSession({ notaType: 'BESAR' })}
-                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${notaType === 'BESAR' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-              >
-                🔩 Nota Besar
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {completed ? renderCompleted(completed, notaType ?? 'KECIL') : (
           <>
@@ -845,20 +817,6 @@ export function Cashier() {
                 <input type="date" value={txDate} onChange={e => updateSession({ txDate: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]" />
               </div>
 
-              {/* Motor input */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Jenis Motor</span>
-                <input type="text" placeholder="Vario 125, Beat, dll..." value={motorType} onChange={e => updateSession({ motorType: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]" />
-              </div>
-
-              {/* Mechanic selector */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Mekanik</span>
-                <select value={selectedMechanicId} onChange={e => updateSession({ selectedMechanicId: e.target.value })} className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[160px]">
-                  <option value="">— Pilih Mekanik —</option>
-                  {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </div>
 
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Subtotal</span><span>{formatRupiah(subtotal)}</span>

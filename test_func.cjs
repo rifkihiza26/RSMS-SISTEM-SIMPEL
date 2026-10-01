@@ -7,7 +7,7 @@ const supabaseKey = envFile.match(/VITE_SUPABASE_ANON_KEY=(.*)/)[1].trim();
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function run() {
-  const { data, error } = await supabase.from('transactions').select('id, transaction_number, mechanic_id, motor_type').eq('transaction_number', 'TRX-20260926-1411');
+  const { data, error } = await supabase.from('transactions').select('id, mechanic_id, notes, motor_type').order('created_at', { ascending: false }).limit(5);
   console.log(data);
 }
 run();

@@ -13,6 +13,8 @@ import { Restocks } from './features/restocks/Restocks'
 import { Mechanics } from './features/mechanics/Mechanics'
 import { Reports } from './features/reports/Reports'
 import { Settings } from './features/settings/Settings'
+import { Recaps } from './features/recaps/Recaps'
+import { Payroll } from './features/payroll/Payroll'
 
 const rootRoute = createRootRoute({
   component: () => <AppLayout />,
@@ -37,9 +39,11 @@ const restocksRoute = createRoute({ getParentRoute: () => rootRoute, path: '/res
 const mechanicsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/mechanics', component: Mechanics })
 const reportsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reports', component: Reports })
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: Settings })
+const recapsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/recaps', component: Recaps })
+const payrollRoute = createRoute({ getParentRoute: () => rootRoute, path: '/payroll', component: Payroll })
 
 export const routeTree = rootRoute.addChildren([
   indexRoute, dashboardRoute, loginRoute, cashierRoute, transactionsRoute,
   incomeRoute, expensesRoute, productsRoute, servicesRoute, inventoryRoute,
-  restocksRoute, mechanicsRoute, reportsRoute, settingsRoute
+  restocksRoute, mechanicsRoute, reportsRoute, settingsRoute, recapsRoute, payrollRoute
 ])
