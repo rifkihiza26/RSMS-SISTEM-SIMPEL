@@ -201,9 +201,9 @@ function AdminRecapsManager() {
       for (const j of jasaList) {
         insertItems.push({
           transaction_id: trxData.id,
-          product_name: j.name,
+          item_name: j.name,
           quantity: 1,
-          price: parseInt(j.price),
+          unit_price: parseInt(j.price),
           subtotal: parseInt(j.price),
           item_type: 'MANUAL_JASA',
           modal_price: 0
@@ -213,9 +213,9 @@ function AdminRecapsManager() {
       for (const b of barangList) {
         insertItems.push({
           transaction_id: trxData.id,
-          product_name: b.name,
+          item_name: b.name,
           quantity: parseInt(b.qty),
-          price: parseInt(b.priceJual),
+          unit_price: parseInt(b.priceJual),
           subtotal: parseInt(b.priceJual) * parseInt(b.qty),
           item_type: 'MANUAL_BARANG',
           modal_price: parseInt(b.priceModal)
