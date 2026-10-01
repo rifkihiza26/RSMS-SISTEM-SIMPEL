@@ -176,43 +176,12 @@ function useDashboardData() {
 function OwnerDashboard() {
   const { totalJasa, totalBarang, totalGaji, totalPengeluaranLain, profitBersih, downloadPDF, downloadExcel } = useDashboardData()
 
-  // Fetch all mechanics once
-  const { data: allMechanics = [] } = useQuery({
-    queryKey: ['dashboard', 'mechanics'],
-    queryFn: async () => {
-      const { data } = await supabase.from('mechanics').select('id, name')
-      return data ?? []
-    }
-  })
-
-  // Fetch Recaps - tanpa join mechanics karena FK tidak terdaftar di schema cache
-  const { data: recentRecaps = [] } = useQuery({
-    queryKey: ['dashboard', 'recent-recaps'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('transactions')
-        .select('transaction_number, total, notes, created_at, mechanic_id, transaction_items(subtotal, quantity, modal_price)')
-        .like('notes', '%REKAPAN%')
-        .order('created_at', { ascending: false }).limit(10)
-      
-      if (error) console.error('recaps error:', error)
-      return data ?? []
-    }
-  })
-
-  const recapsWithCalc = recentRecaps.map((tx: any) => {
-    const items = tx.transaction_items || []
-    const modal = items.reduce((s: number, i: any) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
-    const untung = tx.total - modal
-    const mechanic = allMechanics.find((m: any) => m.id === tx.mechanic_id)
-    return { ...tx, modal, untung, mechanicName: mechanic?.name || '-' }
-  })
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard Owner</h1>
-          <p className="text-sm text-gray-500 mt-1">Ringkasan Bisnis Bulan Ini — ${formatDateShort(new Date())}</p>
+          <p className="text-sm text-gray-500 mt-1">Ringkasan Bisnis Bulan Ini — {formatDateShort(new Date())}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={downloadPDF} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
@@ -228,40 +197,6 @@ function OwnerDashboard() {
         <StatCard title="TOTAL PENDAPATAN" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Barang" />
         <StatCard title="TOTAL PENGELUARAN" value={formatRupiah(totalGaji + totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Gaji + Operasional" />
         <StatCard title="LABA BERSIH" value={formatRupiah(profitBersih)} icon={Wallet} color={profitBersih >= 0 ? 'blue' : 'red'} big subtitle="Bulan Ini" />
-      </div>
-
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Hasil Rekapan Terbaru</h2>
-        <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-          {recapsWithCalc.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 text-sm">Belum ada rekapan servis</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Nomor</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Tanggal</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Mekanik</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Modal</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Untung</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Total Tagihan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recapsWithCalc.map((trx: any) => (
-                  <tr key={trx.transaction_number} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{trx.transaction_number}</td>
-                    <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{formatDateShort(trx.created_at)}</td>
-                    <td className="px-4 py-3 text-gray-800 font-medium">{trx.mechanicName}</td>
-                    <td className="px-4 py-3 text-right text-red-600 hidden md:table-cell">{formatRupiah(trx.modal)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-green-600 hidden sm:table-cell">{formatRupiah(trx.untung)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900">{formatRupiah(trx.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
       </div>
     </div>
   )
