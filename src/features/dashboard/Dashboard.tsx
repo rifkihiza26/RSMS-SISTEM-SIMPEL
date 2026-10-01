@@ -318,14 +318,14 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
     XLSX.writeFile(wb, `Rekapan-${periodLabel.replace(/ /g, '-')}.xlsx`)
   }
 
-  return { totalJasa, totalBarang, totalGaji, totalPengeluaranLain, profitKotor, profitBersih, downloadPDF, downloadExcel }
+  return { totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, profitKotor, profitBersih, downloadPDF, downloadExcel }
 }
 // ------------------------------------------
 // OWNER DASHBOARD (Helicopter View)
 // ------------------------------------------
 function OwnerDashboard() {
   const { startDate, endDate, periodLabel, FilterUI } = useDashboardFilter()
-  const { totalJasa, totalBarang, totalGaji, totalPengeluaranLain, profitBersih, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
+  const { totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, profitBersih, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
 
   return (
     <div className="space-y-6">
@@ -346,9 +346,10 @@ function OwnerDashboard() {
 
       {FilterUI}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard title="TOTAL PENDAPATAN" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Barang" />
-        <StatCard title="TOTAL PENGELUARAN" value={formatRupiah(totalGaji + totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Gaji + Operasional" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="PEMASUKAN TOTAL" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Parts Kasir" />
+        <StatCard title="UNTUNG PARTS" value={formatRupiah(totalBarang - totalModalBarang)} icon={TrendingUp} color="blue" big subtitle="Dari HPP Parts" />
+        <StatCard title="PENGELUARAN" value={formatRupiah(totalGaji + totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Gaji + Operasional" />
         <StatCard title="LABA BERSIH" value={formatRupiah(profitBersih)} icon={Wallet} color={profitBersih >= 0 ? 'blue' : 'red'} big subtitle={periodLabel} />
       </div>
     </div>

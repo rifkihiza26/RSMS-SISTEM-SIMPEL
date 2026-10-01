@@ -201,6 +201,7 @@ export function Reports() {
   const totalPartAll = rekapanWithDetail.reduce((s, t) => s + t.totalPart, 0)
   const totalPengeluaran = expenses.reduce((s, e) => s + e.amount, 0)
   const untungParts = totalPartAll - totalModal
+  const totalPemasukanKotor = totalJasaAll + totalPartAll + totalKasir
   const labaRekapan = totalJasaAll + untungParts + totalKasir - totalPengeluaran
   const totalPiutang = rekapanWithDetail.reduce((s, t) => s + (t.sisa > 0 ? t.sisa : 0), 0)
 
@@ -297,9 +298,11 @@ export function Reports() {
           <tbody>
             <tr><td style="padding:7px 0; color:#555;">🔨 Total Jasa Servis</td><td style="text-align:right; font-weight:bold; color:#16a34a;">${formatRupiah(totalJasaAll)}</td></tr>
             <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">🔩 Penjualan Parts (Bruto)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(totalPartAll)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">🛒 Pendapatan Kasir</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
+            <tr><td style="padding:7px 0; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">💰 TOTAL PEMASUKAN KOTOR</td><td style="text-align:right; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">${formatRupiah(totalPemasukanKotor)}</td></tr>
+            
             <tr><td style="padding:7px 0; color:#555;">📦 Modal / HPP Parts</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalModal)}</td></tr>
             <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">✅ Untung dari Parts</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(untungParts)}</td></tr>
-            <tr><td style="padding:7px 0; color:#555;">🛒 Pendapatan Kasir</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
             <tr><td style="padding:7px 0; color:#555;">💸 Pengeluaran</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalPengeluaran)}</td></tr>
             ${totalPiutang > 0 ? `<tr><td style="padding:7px 0; color:#555;">⚠️ Piutang Belum Lunas</td><td style="text-align:right; font-weight:bold; color:#ea580c;">${formatRupiah(totalPiutang)}</td></tr>` : ''}
             <tr>
