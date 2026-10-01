@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react'
+const fs = require('fs');
+
+const code = `import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRupiah, formatDateShort } from '@/lib/utils'
-import { TrendingUp, TrendingDown, ShoppingCart, AlertTriangle, XCircle, Wallet, FileText, Sheet, Filter } from 'lucide-react'
+import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, XCircle, Wallet, FileText, Sheet, Calendar, Filter } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 function StatCard({ title, value, icon: Icon, color = 'blue', subtitle, big = false }: {
@@ -21,11 +23,11 @@ function StatCard({ title, value, icon: Icon, color = 'blue', subtitle, big = fa
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0 pr-2">
           <p className="text-sm text-gray-500 font-medium truncate">{title}</p>
-          <p className={`${big ? 'text-3xl' : 'text-xl sm:text-2xl'} font-bold text-gray-900 mt-1 truncate`} title={value}>{value}</p>
+          <p className={\`\${big ? 'text-3xl' : 'text-xl sm:text-2xl'} font-bold text-gray-900 mt-1 truncate\`} title={value}>{value}</p>
           {subtitle && <p className="text-xs text-gray-400 mt-1 truncate">{subtitle}</p>}
         </div>
-        <div className={`p-2.5 rounded-lg ${colors[color]} flex-shrink-0 ml-3`}>
-          <Icon className={`${big ? 'h-8 w-8' : 'h-5 w-5'}`} />
+        <div className={\`p-2.5 rounded-lg \${colors[color]} flex-shrink-0 ml-3\`}>
+          <Icon className={\`\${big ? 'h-8 w-8' : 'h-5 w-5'}\`} />
         </div>
       </div>
     </div>
@@ -51,20 +53,20 @@ function useDashboardFilter() {
   const { startDate, endDate, periodLabel } = useMemo(() => {
     if (mode === 'MONTH') {
       const [y, m] = month.split('-')
-      const start = `${month}-01`
+      const start = \`\${month}-01\`
       const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
-      const end = `${month}-${lastDay}`
+      const end = \`\${month}-\${lastDay}\`
       const label = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
-      return { startDate: start, endDate: end, periodLabel: `Bulan ${label}` }
+      return { startDate: start, endDate: end, periodLabel: \`Bulan \${label}\` }
     }
     if (mode === 'DAY') {
       const label = new Date(day).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-      return { startDate: day, endDate: day, periodLabel: `Tanggal ${label}` }
+      return { startDate: day, endDate: day, periodLabel: \`Tanggal \${label}\` }
     }
     // RANGE
     const labelStart = new Date(rangeStart).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
     const labelEnd = new Date(rangeEnd).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    return { startDate: rangeStart, endDate: rangeEnd, periodLabel: `${labelStart} - ${labelEnd}` }
+    return { startDate: rangeStart, endDate: rangeEnd, periodLabel: \`\${labelStart} - \${labelEnd}\` }
   }, [mode, day, month, rangeStart, rangeEnd])
 
   const FilterUI = (
@@ -134,8 +136,8 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
   function downloadPDF() {
     const win = window.open('', '_blank')
     if (!win) return
-    win.document.write(`
-      <html><head><title>Laporan Laba Rugi - ${periodLabel}</title>
+    win.document.write(\`
+      <html><head><title>Laporan Laba Rugi - \${periodLabel}</title>
       <style>
         body { font-family: sans-serif; padding: 32px; font-size: 13px; color: #111; }
         h1 { font-size: 20px; margin-bottom: 4px; }
@@ -151,40 +153,40 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
       </style>
       </head><body>
       <h1>LAPORAN LABA RUGI - RAKYAT SINTING MATIC SHOP</h1>
-      <div class="sub">Periode: ${periodLabel}</div>
+      <div class="sub">Periode: \${periodLabel}</div>
       
       <div class="section">PEMASUKAN</div>
       <table>
-        <tr><td>Pendapatan Jasa Servis</td><td class="right">${formatRupiah(totalJasa)}</td></tr>
-        <tr><td>Pendapatan Barang / Part</td><td class="right">${formatRupiah(totalBarang)}</td></tr>
-        <tr><td class="bold">TOTAL PEMASUKAN</td><td class="right bold">${formatRupiah(totalJasa + totalBarang)}</td></tr>
+        <tr><td>Pendapatan Jasa Servis</td><td class="right">\${formatRupiah(totalJasa)}</td></tr>
+        <tr><td>Pendapatan Barang / Part</td><td class="right">\${formatRupiah(totalBarang)}</td></tr>
+        <tr><td class="bold">TOTAL PEMASUKAN</td><td class="right bold">\${formatRupiah(totalJasa + totalBarang)}</td></tr>
       </table>
 
       <div class="section">HARGA POKOK PENJUALAN (HPP)</div>
       <table>
-        <tr><td>Modal Barang Terjual</td><td class="right">${formatRupiah(totalModalBarang)}</td></tr>
-        <tr><td class="bold">ESTIMASI LABA KOTOR</td><td class="right bold">${formatRupiah(profitKotor)}</td></tr>
+        <tr><td>Modal Barang Terjual</td><td class="right">\${formatRupiah(totalModalBarang)}</td></tr>
+        <tr><td class="bold">ESTIMASI LABA KOTOR</td><td class="right bold">\${formatRupiah(profitKotor)}</td></tr>
       </table>
 
       <div class="section">PENGELUARAN OPERASIONAL & GAJI</div>
       <table>
-        <tr><td>Penggajian Mekanik</td><td class="right">${formatRupiah(totalGaji)}</td></tr>
-        <tr><td>Operasional Lainnya</td><td class="right">${formatRupiah(totalPengeluaranLain)}</td></tr>
-        <tr><td class="bold">TOTAL PENGELUARAN</td><td class="right bold">${formatRupiah(totalGaji + totalPengeluaranLain)}</td></tr>
+        <tr><td>Penggajian Mekanik</td><td class="right">\${formatRupiah(totalGaji)}</td></tr>
+        <tr><td>Operasional Lainnya</td><td class="right">\${formatRupiah(totalPengeluaranLain)}</td></tr>
+        <tr><td class="bold">TOTAL PENGELUARAN</td><td class="right bold">\${formatRupiah(totalGaji + totalPengeluaranLain)}</td></tr>
       </table>
 
       <div class="section">RINGKASAN</div>
       <table>
-        <tr class="${profitBersih >= 0 ? 'laba-row' : 'rugi-row'}">
+        <tr class="\${profitBersih >= 0 ? 'laba-row' : 'rugi-row'}">
           <td class="bold" style="font-size:16px;">LABA BERSIH</td>
-          <td class="right bold" style="font-size:16px;">${formatRupiah(profitBersih)}</td>
+          <td class="right bold" style="font-size:16px;">\${formatRupiah(profitBersih)}</td>
         </tr>
       </table>
 
-      <div style="margin-top:40px; font-size:11px; color:#999;">Dicetak pada: ${new Date().toLocaleString('id-ID')}</div>
+      <div style="margin-top:40px; font-size:11px; color:#999;">Dicetak pada: \${new Date().toLocaleString('id-ID')}</div>
       <script>window.print();</script>
       </body></html>
-    `)
+    \`)
     win.document.close()
   }
 
@@ -192,7 +194,7 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
     const wb = XLSX.utils.book_new()
     const labaData = [
       ['LAPORAN LABA RUGI - RAKYAT SINTING MATIC SHOP'],
-      [`Periode: ${periodLabel}`],
+      [\`Periode: \${periodLabel}\`],
       [],
       ['=== PEMASUKAN ==='],
       ['Keterangan', 'Jumlah (Rp)'],
@@ -224,7 +226,7 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
     ws2['!cols'] = [{ wch: 40 }, { wch: 20 }, { wch: 14 }, { wch: 16 }]
     XLSX.utils.book_append_sheet(wb, ws2, 'Detail Pengeluaran')
 
-    XLSX.writeFile(wb, `Laporan-${periodLabel.replace(/ /g, '-')}.xlsx`)
+    XLSX.writeFile(wb, \`Laporan-\${periodLabel.replace(/ /g, '-')}.xlsx\`)
   }
 
   return { totalJasa, totalBarang, totalGaji, totalPengeluaranLain, profitKotor, profitBersih, downloadPDF, downloadExcel }
@@ -271,7 +273,7 @@ function OwnerDashboard() {
 // ------------------------------------------
 function AdminDashboard() {
   const { startDate, endDate, periodLabel, FilterUI } = useDashboardFilter()
-  const { totalJasa, totalBarang, totalPengeluaranLain, profitKotor, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
+  const { totalJasa, totalBarang, totalGaji, totalPengeluaranLain, profitKotor, profitBersih, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
 
   const { data: products = [] } = useQuery({
     queryKey: ['dashboard', 'products-stock'],
@@ -383,7 +385,7 @@ function KasirDashboard() {
       </div>
       <h2 className="text-xl font-bold text-gray-900">Performa Kasir Hari Ini</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <StatCard title="Total Transaksi" value={`${todayStats?.count || 0} Nota`} icon={FileText} color="blue" />
+        <StatCard title="Total Transaksi" value={\`\${todayStats?.count || 0} Nota\`} icon={FileText} color="blue" />
         <StatCard title="Pendapatan Diterima" value={formatRupiah(todayStats?.total || 0)} icon={Wallet} color="green" />
       </div>
     </div>
@@ -396,3 +398,6 @@ export function Dashboard() {
   if (isAdmin) return <AdminDashboard />
   return <KasirDashboard />
 }
+`
+
+fs.writeFileSync('src/features/dashboard/Dashboard.tsx', code);
