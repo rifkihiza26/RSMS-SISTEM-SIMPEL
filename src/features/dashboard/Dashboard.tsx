@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { formatRupiah, formatDateShort } from '@/lib/utils'
 import { TrendingUp, TrendingDown, ShoppingCart, AlertTriangle, XCircle, Wallet, FileText, Sheet, Filter } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { MonthPicker, DayPicker } from '@/components/CalendarPicker'
 
 function StatCard({ title, value, icon: Icon, color = 'blue', subtitle, big = false }: {
   title: string; value: string; icon: React.ElementType; color?: string; subtitle?: string; big?: boolean
@@ -53,46 +54,51 @@ function useDashboardFilter() {
       const [y, m] = month.split('-')
       const start = `${month}-01`
       const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
-      const end = `${month}-${lastDay}`
+      const end = `${month}-${String(lastDay).padStart(2, '0')}`
       const label = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
       return { startDate: start, endDate: end, periodLabel: `Bulan ${label}` }
     }
     if (mode === 'DAY') {
-      const label = new Date(day).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-      return { startDate: day, endDate: day, periodLabel: `Tanggal ${label}` }
+      const label = new Date(day + 'T12:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      return { startDate: day, endDate: day, periodLabel: label }
     }
-    // RANGE
-    const labelStart = new Date(rangeStart).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    const labelEnd = new Date(rangeEnd).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    return { startDate: rangeStart, endDate: rangeEnd, periodLabel: `${labelStart} - ${labelEnd}` }
+    const labelStart = new Date(rangeStart + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    const labelEnd = new Date(rangeEnd + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    return { startDate: rangeStart, endDate: rangeEnd, periodLabel: `${labelStart} – ${labelEnd}` }
   }, [mode, day, month, rangeStart, rangeEnd])
 
   const FilterUI = (
-    <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-wrap items-center gap-4 mb-6">
-      <div className="flex items-center gap-2 text-gray-700 font-medium mr-2">
-        <Filter className="w-5 h-5" /> Filter:
+    <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex items-center gap-2 text-gray-700 font-semibold">
+        <Filter className="w-4 h-4" /> Filter Periode:
       </div>
-      <select value={mode} onChange={e => setMode(e.target.value as FilterMode)} className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
-        <option value="MONTH">Bulan</option>
-        <option value="DAY">Hari (Spesifik)</option>
-        <option value="RANGE">Rentang Bebas</option>
-      </select>
+      <div className="flex bg-gray-100 p-1 rounded-lg">
+        {(['MONTH', 'DAY', 'RANGE'] as FilterMode[]).map(m => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${mode === m ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            {m === 'MONTH' ? '📅 Bulan' : m === 'DAY' ? '📆 Hari' : '📊 Rentang'}
+          </button>
+        ))}
+      </div>
 
       {mode === 'MONTH' && (
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        <MonthPicker value={month} onChange={setMonth} />
       )}
-      
       {mode === 'DAY' && (
-        <input type="date" value={day} onChange={e => setDay(e.target.value)} className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        <DayPicker value={day} onChange={setDay} />
       )}
-
       {mode === 'RANGE' && (
-        <div className="flex items-center gap-2">
-          <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
-          <span className="text-gray-500 text-sm">s/d</span>
-          <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <DayPicker value={rangeStart} onChange={setRangeStart} label="Dari" />
+          <span className="text-gray-400 font-medium">→</span>
+          <DayPicker value={rangeEnd} onChange={setRangeEnd} label="Sampai" />
         </div>
       )}
+
+      <span className="ml-auto text-sm font-medium text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">{periodLabel}</span>
     </div>
   )
 

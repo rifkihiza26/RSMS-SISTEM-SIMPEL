@@ -7,6 +7,7 @@ import {
   Download, Wrench, ShoppingCart, Filter, ChevronDown, ChevronUp
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { MonthPicker, DayPicker } from '@/components/CalendarPicker'
 
 // ---------- HELPERS ----------
 type FilterMode = 'MONTH' | 'DAY' | 'RANGE'
@@ -54,30 +55,26 @@ function useReportFilter() {
             onClick={() => setMode(m)}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${mode === m ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            {m === 'MONTH' ? 'Bulan' : m === 'DAY' ? 'Hari' : 'Rentang'}
+            {m === 'MONTH' ? '📅 Bulan' : m === 'DAY' ? '📆 Hari' : '📊 Rentang'}
           </button>
         ))}
       </div>
 
       {mode === 'MONTH' && (
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        <MonthPicker value={month} onChange={setMonth} />
       )}
       {mode === 'DAY' && (
-        <input type="date" value={day} onChange={e => setDay(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        <DayPicker value={day} onChange={setDay} />
       )}
       {mode === 'RANGE' && (
         <div className="flex items-center gap-2 flex-wrap">
-          <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-          <span className="text-gray-400">s/d</span>
-          <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <DayPicker value={rangeStart} onChange={setRangeStart} label="Dari" />
+          <span className="text-gray-400 font-medium">→</span>
+          <DayPicker value={rangeEnd} onChange={setRangeEnd} label="Sampai" />
         </div>
       )}
 
-      <span className="ml-auto text-sm text-gray-500 italic">{periodLabel}</span>
+      <span className="ml-auto text-sm font-medium text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">{periodLabel}</span>
     </div>
   )
 
