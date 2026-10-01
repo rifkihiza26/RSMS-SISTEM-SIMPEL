@@ -1,567 +1,575 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { formatRupiah, formatDateShort } from '@/lib/utils'
-import { downloadPDF } from '@/lib/pdf'
-import { TrendingUp, TrendingDown, Wallet, ShoppingCart, FileText, Download, Wrench, Package, ChevronDown, ChevronUp } from 'lucide-react'
+import { formatRupiah } from '@/lib/utils'
+import {
+  TrendingUp, TrendingDown, Wallet, FileText,
+  Download, Wrench, ShoppingCart, Filter, ChevronDown, ChevronUp
+} from 'lucide-react'
+import * as XLSX from 'xlsx'
 
-type PeriodOption = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom'
-type ItemFilter = 'semua' | 'jasa' | 'part'
+// ---------- HELPERS ----------
+type FilterMode = 'MONTH' | 'DAY' | 'RANGE'
 
-function getDateRange(period: PeriodOption, customFrom: string, customTo: string) {
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-  
-  if (period === 'today') {
-    const t = fmt(now)
-    return { from: t, to: t }
-  }
-  if (period === 'this_week') {
-    const day = now.getDay()
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
-    const mon = new Date(now.setDate(diff))
-    return { from: fmt(mon), to: fmt(new Date()) }
-  }
-  if (period === 'this_month') {
-    return { from: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`, to: fmt(now) }
-  }
-  return { from: customFrom, to: customTo }
+function useReportFilter() {
+  const today = new Date().toISOString().split('T')[0]
+  const currentMonth = today.slice(0, 7)
+
+  const [mode, setMode] = useState<FilterMode>('MONTH')
+  const [day, setDay] = useState(today)
+  const [month, setMonth] = useState(currentMonth)
+  const [rangeStart, setRangeStart] = useState(today)
+  const [rangeEnd, setRangeEnd] = useState(today)
+
+  const { startDate, endDate, periodLabel } = useMemo(() => {
+    if (mode === 'MONTH') {
+      const [y, m] = month.split('-')
+      const start = `${month}-01`
+      const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
+      const end = `${month}-${String(lastDay).padStart(2, '0')}`
+      const label = new Date(parseInt(y), parseInt(m) - 1, 1)
+        .toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+      return { startDate: start, endDate: end, periodLabel: `Bulan ${label}` }
+    }
+    if (mode === 'DAY') {
+      const label = new Date(day + 'T12:00:00').toLocaleDateString('id-ID', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      })
+      return { startDate: day, endDate: day, periodLabel: label }
+    }
+    const labelS = new Date(rangeStart + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    const labelE = new Date(rangeEnd + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    return { startDate: rangeStart, endDate: rangeEnd, periodLabel: `${labelS} – ${labelE}` }
+  }, [mode, day, month, rangeStart, rangeEnd])
+
+  const FilterUI = (
+    <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-2 text-gray-700 font-semibold">
+        <Filter className="w-4 h-4" /> Filter Periode:
+      </div>
+      <div className="flex bg-gray-100 p-1 rounded-lg">
+        {(['MONTH', 'DAY', 'RANGE'] as FilterMode[]).map(m => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${mode === m ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            {m === 'MONTH' ? 'Bulan' : m === 'DAY' ? 'Hari' : 'Rentang'}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'MONTH' && (
+        <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+      )}
+      {mode === 'DAY' && (
+        <input type="date" value={day} onChange={e => setDay(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+      )}
+      {mode === 'RANGE' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <span className="text-gray-400">s/d</span>
+          <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        </div>
+      )}
+
+      <span className="ml-auto text-sm text-gray-500 italic">{periodLabel}</span>
+    </div>
+  )
+
+  return { startDate, endDate, periodLabel, FilterUI }
 }
 
-function isJasaType(item_type: string) {
-  return item_type === 'SERVICE' || item_type === 'MANUAL_JASA'
-}
-function isPartType(item_type: string) {
-  return item_type === 'PRODUCT' || item_type === 'MANUAL_BARANG' || item_type === 'MANUAL'
+// Extract motor from notes field (format: "[KECIL] Mekanik: X | Motor: Vario B1234XX | SUMBER: REKAPAN")
+function extractMotor(notes: string | null): string {
+  if (!notes) return '-'
+  const match = notes.match(/Motor:\s*([^|]+)/i)
+  return match ? match[1].trim() : '-'
 }
 
+function extractMekanik(notes: string | null): string {
+  if (!notes) return '-'
+  const match = notes.match(/Mekanik:\s*([^|]+)/i)
+  return match ? match[1].trim() : '-'
+}
+
+function isRekapan(notes: string | null): boolean {
+  return !!(notes && notes.includes('REKAPAN'))
+}
+
+// ---------- MAIN COMPONENT ----------
 export function Reports() {
-  const [period, setPeriod] = useState<PeriodOption>('this_month')
-  const [customFrom, setCustomFrom] = useState('')
-  const [customTo, setCustomTo] = useState('')
-  const [itemFilter, setItemFilter] = useState<ItemFilter>('semua')
+  const { startDate, endDate, periodLabel, FilterUI } = useReportFilter()
   const [expandedMechanic, setExpandedMechanic] = useState<string | null>(null)
 
-  const { from, to } = getDateRange(period, customFrom, customTo)
-
-  const { data: incomes = [], isLoading: incLoading } = useQuery({
-    queryKey: ['report-incomes', from, to],
-    enabled: !!(from && to),
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('incomes')
-        .select('amount, payment_method, category, date')
-        .gte('date', from)
-        .lte('date', to)
-      return data ?? []
-    }
-  })
-
-  const { data: expenses = [], isLoading: expLoading } = useQuery({
-    queryKey: ['report-expenses', from, to],
-    enabled: !!(from && to),
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('expenses')
-        .select('amount, payment_method, category, date')
-        .gte('date', from)
-        .lte('date', to)
-      return data ?? []
-    }
-  })
-
-  const { data: transactions = [], isLoading: trxLoading } = useQuery({
-    queryKey: ['report-transactions', from, to],
-    enabled: !!(from && to),
+  // Fetch ALL transactions in range (no status filter - rekapan doesn't have status)
+  const { data: allTransactions = [], isLoading: trxLoading } = useQuery({
+    queryKey: ['reports', 'transactions', startDate, endDate],
+    enabled: !!(startDate && endDate),
     queryFn: async () => {
       const { data } = await supabase
         .from('transactions')
-        .select('total, payment_method, notes, created_at')
-        .gte('created_at', from + 'T00:00:00')
-        .lte('created_at', to + 'T23:59:59')
-        .in('status', ['COMPLETED', 'PAID'])
+        .select('id, transaction_number, total, payment_method, notes, created_at, customer_name, amount_paid, payment_status, mechanic_id')
+        .gte('created_at', startDate + 'T00:00:00Z')
+        .lte('created_at', endDate + 'T23:59:59Z')
+        .order('created_at', { ascending: true })
       return data ?? []
     }
   })
 
-  const { data: allMechanics = [] } = useQuery({
-    queryKey: ['report-mechanics'],
-    queryFn: async () => {
-      const { data } = await supabase.from('mechanics').select('id, name')
-      return data ?? []
-    }
-  })
-
-  // Query transaction_items joined with transactions + mechanics for mechanic report
-  const { data: txItems = [], isLoading: itemsLoading } = useQuery({
-    queryKey: ['report-tx-items', from, to],
-    enabled: !!(from && to),
+  // Fetch transaction items for rekapan details
+  const { data: allItems = [] } = useQuery({
+    queryKey: ['reports', 'items', startDate, endDate],
+    enabled: !!(startDate && endDate),
     queryFn: async () => {
       const { data } = await supabase
         .from('transaction_items')
-        .select(`
-          id, item_name, item_type, quantity, unit_price, subtotal,
-          transactions!inner(
-            id, created_at, motor_type, mechanic_id, status
-            
-          )
-        `)
-        .gte('transactions.created_at', from + 'T00:00:00')
-        .lte('transactions.created_at', to + 'T23:59:59')
-        .in('transactions.status', ['COMPLETED', 'PAID'])
+        .select('transaction_id, item_name, item_type, quantity, unit_price, subtotal, modal_price')
+        .gte('created_at', startDate + 'T00:00:00Z')
+        .lte('created_at', endDate + 'T23:59:59Z')
       return data ?? []
     }
   })
 
-  const totalIncome = incomes.reduce((s, i) => s + i.amount, 0)
-  const totalExpense = expenses.reduce((s, e) => s + e.amount, 0)
-  const netProfit = totalIncome - totalExpense
-  const totalTrx = transactions.length
-  const avgTrx = totalTrx > 0 ? transactions.reduce((s, t) => s + t.total, 0) / totalTrx : 0
-
-  // Income by category
-  const incByCategory = incomes.reduce((acc, i) => {
-    acc[i.category] = (acc[i.category] || 0) + i.amount
-    return acc
-  }, {} as Record<string, number>)
-
-  // Expense by category
-  const expByCategory = expenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount
-    return acc
-  }, {} as Record<string, number>)
-
-  // Payment method breakdown
-  const byMethod = transactions.reduce((acc, t) => {
-    acc[t.payment_method] = (acc[t.payment_method] || 0) + t.total
-    return acc
-  }, {} as Record<string, number>)
-
-  // Nota type breakdown
-  const byNotaType = transactions.reduce((acc, t) => {
-    const isBesar = (t.notes || '').includes('[BESAR]')
-    const type = isBesar ? 'Nota Besar' : 'Nota Kecil'
-    acc[type] = (acc[type] || 0) + t.total
-    return acc
-  }, {} as Record<string, number>)
-
-  // Jasa vs Part breakdown from transaction_items
-  const totalJasa = txItems
-    .filter(i => isJasaType(i.item_type))
-    .reduce((s, i) => s + (i.subtotal ?? 0), 0)
-  const totalPart = txItems
-    .filter(i => isPartType(i.item_type))
-    .reduce((s, i) => s + (i.subtotal ?? 0), 0)
-  const totalItemAll = totalJasa + totalPart
-
-  // Filter items by itemFilter
-  const filteredItems = txItems.filter(i => {
-    if (itemFilter === 'jasa') return isJasaType(i.item_type)
-    if (itemFilter === 'part') return isPartType(i.item_type)
-    return true
+  // Fetch expenses
+  const { data: expenses = [] } = useQuery({
+    queryKey: ['reports', 'expenses', startDate, endDate],
+    enabled: !!(startDate && endDate),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('expenses')
+        .select('amount, category, date, description')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+      return data ?? []
+    }
   })
 
-  // Group by mechanic for mechanic report
-  type MechanicEntry = {
-    mechanic_id: string | null
-    mechanic_name: string
-    items: Array<{
-      date: string
-      motor: string
-      item_name: string
-      item_type: string
-      quantity: number
-      subtotal: number
-    }>
-    total: number
-  }
+  // Separate rekapan vs kasir
+  const rekapanTrx = allTransactions.filter(t => isRekapan(t.notes))
+  const kasirTrx = allTransactions.filter(t => !isRekapan(t.notes))
 
-  const mechanicMap = filteredItems.reduce((acc, i) => {
-    const trx = (i as any).transactions
-    if (!trx) return acc
-    const mechId = trx.mechanic_id ?? 'TANPA_MEKANIK'
-    const mechName = allMechanics.find(m => m.id === mechId)?.name ?? '(Tanpa Mekanik)'
-    if (!acc[mechId]) {
-      acc[mechId] = { mechanic_id: mechId, mechanic_name: mechName, items: [], total: 0 }
+  // Build item map
+  const itemsByTrx = useMemo(() => {
+    const map: Record<string, typeof allItems> = {}
+    for (const item of allItems) {
+      if (!map[item.transaction_id]) map[item.transaction_id] = []
+      map[item.transaction_id].push(item)
     }
-    acc[mechId].items.push({
-      date: trx.created_at,
-      motor: trx.motor_type ?? '-',
-      item_name: i.item_name,
-      item_type: i.item_type,
-      quantity: i.quantity,
-      subtotal: i.subtotal ?? 0,
-    })
-    acc[mechId].total += (i.subtotal ?? 0)
-    return acc
-  }, {} as Record<string, MechanicEntry>)
+    return map
+  }, [allItems])
 
-  const mechanicList = Object.values(mechanicMap).sort((a, b) => b.total - a.total)
+  // Aggregate for rekapan
+  const rekapanWithDetail = rekapanTrx.map(t => {
+    const items = itemsByTrx[t.id] || []
+    const jasaItems = items.filter(i => i.item_type === 'MANUAL_JASA')
+    const partItems = items.filter(i => i.item_type === 'MANUAL_BARANG')
+    const totalJasa = jasaItems.reduce((s, i) => s + (i.subtotal || 0), 0)
+    const totalPart = partItems.reduce((s, i) => s + (i.subtotal || 0), 0)
+    const totalModal = items.reduce((s, i) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
+    const totalUntung = t.total - totalModal
+    return {
+      ...t,
+      motor: extractMotor(t.notes),
+      mekanik: extractMekanik(t.notes),
+      jasaItems, partItems, totalJasa, totalPart, totalModal, totalUntung,
+      sisa: t.total - (t.amount_paid || 0)
+    }
+  })
 
-  const isLoading = incLoading || expLoading || trxLoading || itemsLoading
+  // Summary numbers
+  const totalRekapan = rekapanTrx.reduce((s, t) => s + t.total, 0)
+  const totalKasir = kasirTrx.reduce((s, t) => s + t.total, 0)
+  const totalModal = rekapanWithDetail.reduce((s, t) => s + t.totalModal, 0)
+  const totalUntung = rekapanWithDetail.reduce((s, t) => s + t.totalUntung, 0)
+  const totalJasaAll = rekapanWithDetail.reduce((s, t) => s + t.totalJasa, 0)
+  const totalPartAll = rekapanWithDetail.reduce((s, t) => s + t.totalPart, 0)
+  const totalPengeluaran = expenses.reduce((s, e) => s + e.amount, 0)
+  const labaRekapan = totalUntung + totalKasir - totalPengeluaran
+  const totalPiutang = rekapanWithDetail.reduce((s, t) => s + (t.sisa > 0 ? t.sisa : 0), 0)
 
-  function printReport() {
-    window.print()
+  // Group rekapan by mechanic
+  const byMechanic = useMemo(() => {
+    const map: Record<string, { name: string; trx: typeof rekapanWithDetail; total: number }> = {}
+    for (const t of rekapanWithDetail) {
+      const key = t.mekanik
+      if (!map[key]) map[key] = { name: key, trx: [], total: 0 }
+      map[key].trx.push(t)
+      map[key].total += t.total
+    }
+    return Object.values(map).sort((a, b) => b.total - a.total)
+  }, [rekapanWithDetail])
+
+  // Download PDF - Full Detail
+  function handleDownloadPDF() {
+    const win = window.open('', '_blank')
+    if (!win) return
+
+    const rekapanRows = rekapanWithDetail.map(t => `
+      <tr>
+        <td>${new Date(t.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</td>
+        <td>${t.customer_name || '-'}</td>
+        <td>${t.motor}</td>
+        <td>${t.mekanik}</td>
+        <td class="right">${formatRupiah(t.totalJasa)}</td>
+        <td class="right">${formatRupiah(t.totalPart)}</td>
+        <td class="right red">${formatRupiah(t.totalModal)}</td>
+        <td class="right green">${formatRupiah(t.totalUntung)}</td>
+        <td class="right bold">${formatRupiah(t.total)}</td>
+        <td class="center">
+          <span class="badge ${t.payment_status === 'LUNAS' ? 'badge-green' : t.payment_status === 'DP' ? 'badge-yellow' : 'badge-red'}">
+            ${t.payment_status || 'LUNAS'}
+          </span>
+        </td>
+      </tr>
+    `).join('')
+
+    const kasirRows = kasirTrx.map(t => `
+      <tr>
+        <td>${new Date(t.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+        <td>${t.transaction_number}</td>
+        <td>${t.payment_method || '-'}</td>
+        <td class="right bold green">${formatRupiah(t.total)}</td>
+      </tr>
+    `).join('')
+
+    const expenseRows = expenses.map(e => `
+      <tr>
+        <td>${new Date(e.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</td>
+        <td>${e.category}</td>
+        <td>${e.description || '-'}</td>
+        <td class="right bold red">${formatRupiah(e.amount)}</td>
+      </tr>
+    `).join('')
+
+    win.document.write(`
+      <html><head><title>Laporan Servis - ${periodLabel}</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 28px; font-size: 12px; color: #111; max-width: 1100px; margin: auto; }
+        h1 { font-size: 22px; text-align: center; margin-bottom: 2px; }
+        .subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 28px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+        .sum-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; }
+        .sum-label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+        .sum-val { font-size: 16px; font-weight: bold; }
+        .green { color: #16a34a; }
+        .red { color: #dc2626; }
+        .blue { color: #2563eb; }
+        .orange { color: #ea580c; }
+        .section { background: #1e293b; color: white; padding: 8px 14px; font-weight: bold; font-size: 13px; margin-top: 24px; border-radius: 6px 6px 0 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 11px; }
+        th { background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; text-align: left; font-weight: 600; color: #374151; }
+        td { padding: 7px 8px; border: 1px solid #e2e8f0; }
+        .right { text-align: right; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-yellow { background: #fef08a; color: #854d0e; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .footer { text-align: center; font-size: 10px; color: #9ca3af; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+      </style></head><body>
+
+      <h1>RAKYAT SINTING MATIC SHOP</h1>
+      <div class="subtitle">Laporan Rekapan Servis & Keuangan · ${periodLabel}</div>
+
+      <div class="summary-grid">
+        <div class="sum-card"><div class="sum-label">Total Servis (Rekapan)</div><div class="sum-val green">${formatRupiah(totalRekapan)}</div></div>
+        <div class="sum-card"><div class="sum-label">Total Kasir</div><div class="sum-val blue">${formatRupiah(totalKasir)}</div></div>
+        <div class="sum-card"><div class="sum-label">Total Modal Parts</div><div class="sum-val red">${formatRupiah(totalModal)}</div></div>
+        <div class="sum-card"><div class="sum-label">Total Pengeluaran</div><div class="sum-val orange">${formatRupiah(totalPengeluaran)}</div></div>
+        <div class="sum-card"><div class="sum-label">Jasa Mekanik</div><div class="sum-val green">${formatRupiah(totalJasaAll)}</div></div>
+        <div class="sum-card"><div class="sum-label">Penjualan Parts</div><div class="sum-val blue">${formatRupiah(totalPartAll)}</div></div>
+        <div class="sum-card"><div class="sum-label">Piutang Belum Lunas</div><div class="sum-val red">${formatRupiah(totalPiutang)}</div></div>
+        <div class="sum-card" style="background:#eff6ff; border-color:#93c5fd;"><div class="sum-label">ESTIMASI LABA BERSIH</div><div class="sum-val blue">${formatRupiah(labaRekapan)}</div></div>
+      </div>
+
+      <div class="section">📋 DETAIL TRANSAKSI REKAPAN SERVIS</div>
+      <table>
+        <thead><tr>
+          <th>Tanggal</th><th>Pelanggan</th><th>Motor / Plat</th><th>Mekanik</th>
+          <th class="right">Jasa</th><th class="right">Parts</th>
+          <th class="right">Modal</th><th class="right">Untung</th>
+          <th class="right">Total</th><th class="center">Status</th>
+        </tr></thead>
+        <tbody>${rekapanRows || '<tr><td colspan="10" style="text-align:center;padding:16px;color:#9ca3af;">Belum ada rekapan di periode ini</td></tr>'}</tbody>
+      </table>
+
+      <div class="section">🧾 TRANSAKSI KASIR</div>
+      <table>
+        <thead><tr><th>Waktu</th><th>No. Nota</th><th>Metode Bayar</th><th class="right">Total</th></tr></thead>
+        <tbody>${kasirRows || '<tr><td colspan="4" style="text-align:center;padding:16px;color:#9ca3af;">Belum ada transaksi kasir di periode ini</td></tr>'}</tbody>
+      </table>
+
+      <div class="section">💸 DETAIL PENGELUARAN</div>
+      <table>
+        <thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead>
+        <tbody>${expenseRows || '<tr><td colspan="4" style="text-align:center;padding:16px;color:#9ca3af;">Tidak ada pengeluaran di periode ini</td></tr>'}</tbody>
+      </table>
+
+      <div class="footer">Digenerate oleh sistem RSMS · ${new Date().toLocaleString('id-ID')}</div>
+      <script>window.print();</script>
+      </body></html>
+    `)
+    win.document.close()
   }
+
+  // Download Excel
+  function handleDownloadExcel() {
+    const wb = XLSX.utils.book_new()
+
+    // Sheet 1: Summary
+    const summaryData = [
+      ['LAPORAN REKAPAN SERVIS - RAKYAT SINTING MATIC SHOP'],
+      [`Periode: ${periodLabel}`],
+      [],
+      ['Keterangan', 'Jumlah (Rp)'],
+      ['Total Rekapan Servis', totalRekapan],
+      ['Total Transaksi Kasir', totalKasir],
+      ['Total Modal Parts', totalModal],
+      ['Total Pengeluaran', totalPengeluaran],
+      ['Estimasi Laba Bersih', labaRekapan],
+      ['Piutang Belum Lunas', totalPiutang],
+    ]
+    const ws1 = XLSX.utils.aoa_to_sheet(summaryData)
+    ws1['!cols'] = [{ wch: 35 }, { wch: 20 }]
+    XLSX.utils.book_append_sheet(wb, ws1, 'Ringkasan')
+
+    // Sheet 2: Rekapan Detail
+    const rekapRows = [
+      ['Tanggal', 'Pelanggan', 'Motor / Plat', 'Mekanik', 'Total Jasa', 'Total Parts', 'Total Modal', 'Total Untung', 'Total Tagihan', 'Dibayar', 'Sisa Hutang', 'Status'],
+      ...rekapanWithDetail.map(t => [
+        new Date(t.created_at).toLocaleString('id-ID'),
+        t.customer_name || '-',
+        t.motor,
+        t.mekanik,
+        t.totalJasa,
+        t.totalPart,
+        t.totalModal,
+        t.totalUntung,
+        t.total,
+        t.amount_paid || 0,
+        t.sisa > 0 ? t.sisa : 0,
+        t.payment_status || 'LUNAS'
+      ])
+    ]
+    const ws2 = XLSX.utils.aoa_to_sheet(rekapRows)
+    ws2['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }]
+    XLSX.utils.book_append_sheet(wb, ws2, 'Detail Rekapan Servis')
+
+    // Sheet 3: Kasir
+    const kasirRows = [
+      ['Waktu', 'No. Nota', 'Metode Bayar', 'Total (Rp)'],
+      ...kasirTrx.map(t => [new Date(t.created_at).toLocaleString('id-ID'), t.transaction_number, t.payment_method, t.total])
+    ]
+    const ws3 = XLSX.utils.aoa_to_sheet(kasirRows)
+    ws3['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 14 }, { wch: 16 }]
+    XLSX.utils.book_append_sheet(wb, ws3, 'Transaksi Kasir')
+
+    // Sheet 4: Expenses
+    const expRows = [
+      ['Tanggal', 'Kategori', 'Keterangan', 'Jumlah (Rp)'],
+      ...expenses.map(e => [e.date, e.category, e.description || '-', e.amount])
+    ]
+    const ws4 = XLSX.utils.aoa_to_sheet(expRows)
+    ws4['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 40 }, { wch: 16 }]
+    XLSX.utils.book_append_sheet(wb, ws4, 'Pengeluaran')
+
+    XLSX.writeFile(wb, `Laporan-Servis-${periodLabel.replace(/[\s/]/g, '-')}.xlsx`)
+  }
+
+  const isLoading = trxLoading
 
   return (
-    <div id="report-container" className="space-y-6 bg-gray-50/50 p-2 rounded-xl">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Laporan</h1>
-          <p className="text-sm text-gray-500 mt-1">Rekapitulasi operasional bengkel</p>
+          <h1 className="text-2xl font-bold text-gray-900">Laporan Servis</h1>
+          <p className="text-sm text-gray-500 mt-1">Rekapan servis, kasir, piutang & keuangan bengkel.</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={printReport}
-            className="flex items-center gap-2 bg-white border px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 shadow-sm"
-          >
-            <FileText className="h-4 w-4" /> Cetak
+          <button onClick={handleDownloadPDF} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+            <FileText className="w-4 h-4" /> PDF
           </button>
-          <button
-            onClick={() => downloadPDF('report-container', 'Laporan-Rekap-RSMS')}
-            className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 shadow-sm"
-          >
-            <Download className="h-4 w-4" /> Download PDF
+          <button onClick={handleDownloadExcel} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+            <Download className="w-4 h-4" /> Excel
           </button>
         </div>
       </div>
 
-      {/* Period Filter */}
-      <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Periode</label>
-          <div className="flex flex-wrap gap-2">
-            {(['today', 'this_week', 'this_month', 'this_year', 'custom'] as PeriodOption[]).map(p => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${period === p ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-              >
-                {p === 'today' ? 'Hari Ini' : p === 'this_week' ? 'Minggu Ini' : p === 'this_month' ? 'Bulan Ini' : p === 'this_year' ? 'Tahun Ini' : 'Kustom'}
-              </button>
-            ))}
-          </div>
-        </div>
-        {period === 'custom' && (
-          <div className="flex items-center gap-2">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Dari</label>
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
+      {FilterUI}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Rekapan Servis', value: formatRupiah(totalRekapan), color: 'text-green-600', bg: 'bg-green-50', icon: Wrench },
+          { label: 'Transaksi Kasir', value: formatRupiah(totalKasir), color: 'text-blue-600', bg: 'bg-blue-50', icon: ShoppingCart },
+          { label: 'Total Modal Parts', value: formatRupiah(totalModal), color: 'text-red-600', bg: 'bg-red-50', icon: TrendingDown },
+          { label: 'Piutang Belum Lunas', value: formatRupiah(totalPiutang), color: 'text-orange-600', bg: 'bg-orange-50', icon: Wallet },
+          { label: 'Jasa Mekanik', value: formatRupiah(totalJasaAll), color: 'text-green-600', bg: 'bg-green-50', icon: TrendingUp },
+          { label: 'Penjualan Parts', value: formatRupiah(totalPartAll), color: 'text-blue-600', bg: 'bg-blue-50', icon: ShoppingCart },
+          { label: 'Total Pengeluaran', value: formatRupiah(totalPengeluaran), color: 'text-red-600', bg: 'bg-red-50', icon: TrendingDown },
+          { label: 'Estimasi Laba Bersih', value: formatRupiah(labaRekapan), color: labaRekapan >= 0 ? 'text-blue-700' : 'text-red-600', bg: 'bg-blue-50', icon: Wallet },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} border rounded-xl p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <c.icon className={`w-4 h-4 ${c.color}`} />
+              <p className="text-xs text-gray-500">{c.label}</p>
             </div>
-            <span className="text-gray-400 mt-5">—</span>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Sampai</label>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/40" />
-            </div>
+            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
           </div>
-        )}
-        {from && to && (
-          <p className="text-xs text-gray-400 self-end pb-1">
-            {formatDateShort(from)} — {formatDateShort(to)}
-          </p>
-        )}
+        ))}
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-16 text-gray-400 text-sm">Memuat laporan...</div>
-      ) : (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white border rounded-xl p-4 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="pr-2">
-                  <p className="text-xs text-gray-500 font-medium">Total Pemasukan</p>
-                  <p className="text-lg sm:text-xl font-bold text-green-600 mt-1 truncate">{formatRupiah(totalIncome)}</p>
+      {/* Rekapan by Mechanic */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <Wrench className="w-5 h-5 text-blue-600" /> Rekapan Servis per Mekanik
+        </h2>
+        {isLoading ? (
+          <div className="bg-white border rounded-xl p-8 text-center text-gray-400">Memuat data...</div>
+        ) : byMechanic.length === 0 ? (
+          <div className="bg-white border rounded-xl p-8 text-center text-gray-400">Belum ada rekapan di periode ini</div>
+        ) : byMechanic.map(mech => (
+          <div key={mech.name} className="bg-white border rounded-xl overflow-hidden shadow-sm">
+            <button
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+              onClick={() => setExpandedMechanic(expandedMechanic === mech.name ? null : mech.name)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
+                  {mech.name.charAt(0).toUpperCase()}
                 </div>
-                <div className="p-2 bg-green-50 rounded-lg flex-shrink-0"><TrendingUp className="h-4 w-4 text-green-600" /></div>
-              </div>
-            </div>
-            <div className="bg-white border rounded-xl p-4 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="pr-2">
-                  <p className="text-xs text-gray-500 font-medium">Total Pengeluaran</p>
-                  <p className="text-lg sm:text-xl font-bold text-red-600 mt-1 truncate">{formatRupiah(totalExpense)}</p>
-                </div>
-                <div className="p-2 bg-red-50 rounded-lg flex-shrink-0"><TrendingDown className="h-4 w-4 text-red-600" /></div>
-              </div>
-            </div>
-            <div className="bg-white border rounded-xl p-4 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="pr-2">
-                  <p className="text-xs text-gray-500 font-medium">Saldo Bersih</p>
-                  <p className={`text-lg sm:text-xl font-bold mt-1 truncate ${netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatRupiah(netProfit)}</p>
-                </div>
-                <div className={`p-2 rounded-lg flex-shrink-0 ${netProfit >= 0 ? 'bg-blue-50' : 'bg-red-50'}`}>
-                  <Wallet className={`h-4 w-4 ${netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
+                <div className="text-left">
+                  <p className="font-semibold text-gray-900">{mech.name}</p>
+                  <p className="text-xs text-gray-500">{mech.trx.length} nota servis</p>
                 </div>
               </div>
-            </div>
-            <div className="bg-white border rounded-xl p-4 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="pr-2">
-                  <p className="text-xs text-gray-500 font-medium">Total Transaksi</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{totalTrx}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">Rata-rata {formatRupiah(Math.round(avgTrx))}</p>
-                </div>
-                <div className="p-2 bg-purple-50 rounded-lg flex-shrink-0"><ShoppingCart className="h-4 w-4 text-purple-600" /></div>
+              <div className="flex items-center gap-4">
+                <span className="font-bold text-blue-700 text-lg">{formatRupiah(mech.total)}</span>
+                {expandedMechanic === mech.name ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
               </div>
-            </div>
-          </div>
+            </button>
 
-          {/* Jasa vs Part Breakdown */}
-          <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Breakdown Jasa & Part</h2>
-              {/* Filter Toggle */}
-              <div className="flex gap-1">
-                {(['semua', 'jasa', 'part'] as ItemFilter[]).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setItemFilter(f)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${itemFilter === f ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                  >
-                    {f === 'semua' ? 'Semua' : f === 'jasa' ? '🔧 Jasa' : '📦 Part'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {(itemFilter === 'semua' || itemFilter === 'jasa') && (
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Wrench className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-semibold text-blue-700">Total Jasa</span>
-                  </div>
-                  <p className="text-2xl font-bold text-blue-700">{formatRupiah(totalJasa)}</p>
-                  <p className="text-xs text-blue-500 mt-1">
-                    {totalItemAll > 0 ? Math.round((totalJasa / totalItemAll) * 100) : 0}% dari total item
-                  </p>
-                  <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${totalItemAll > 0 ? (totalJasa / totalItemAll) * 100 : 0}%` }} />
-                  </div>
-                </div>
-              )}
-              {(itemFilter === 'semua' || itemFilter === 'part') && (
-                <div className="bg-orange-50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Package className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm font-semibold text-orange-700">Total Part / Barang</span>
-                  </div>
-                  <p className="text-2xl font-bold text-orange-700">{formatRupiah(totalPart)}</p>
-                  <p className="text-xs text-orange-500 mt-1">
-                    {totalItemAll > 0 ? Math.round((totalPart / totalItemAll) * 100) : 0}% dari total item
-                  </p>
-                  <div className="mt-2 h-2 bg-orange-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-orange-500 rounded-full" style={{ width: `${totalItemAll > 0 ? (totalPart / totalItemAll) * 100 : 0}%` }} />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Mechanic Report */}
-          <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Laporan per Mekanik</h2>
-              <div className="flex gap-1">
-                {(['semua', 'jasa', 'part'] as ItemFilter[]).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setItemFilter(f)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${itemFilter === f ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                  >
-                    {f === 'semua' ? 'Semua' : f === 'jasa' ? '🔧 Jasa' : '📦 Part'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {mechanicList.length === 0 ? (
-              <div className="text-center py-10 text-gray-400 text-sm">Tidak ada data mekanik pada periode ini</div>
-            ) : (
-              <div className="divide-y">
-                {mechanicList.map(mech => {
-                  const isExpanded = expandedMechanic === mech.mechanic_id
-                  return (
-                    <div key={mech.mechanic_id}>
-                      {/* Mechanic Header Row */}
-                      <button
-                        onClick={() => setExpandedMechanic(isExpanded ? null : mech.mechanic_id)}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-primary font-bold text-xs">{mech.mechanic_name.charAt(0).toUpperCase()}</span>
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">{mech.mechanic_name}</p>
-                            <p className="text-xs text-gray-400">{mech.items.length} item dikerjakan</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-gray-900">{formatRupiah(mech.total)}</span>
-                          {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-                        </div>
-                      </button>
-
-                      {/* Expanded Detail */}
-                      {isExpanded && (
-                        <div className="bg-gray-50 border-t">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b bg-gray-100">
-                                <th className="text-left px-4 py-2 font-medium text-gray-600">Tanggal</th>
-                                <th className="text-left px-4 py-2 font-medium text-gray-600">Motor</th>
-                                <th className="text-left px-4 py-2 font-medium text-gray-600">Item</th>
-                                <th className="text-center px-4 py-2 font-medium text-gray-600">Jenis</th>
-                                <th className="text-right px-4 py-2 font-medium text-gray-600">Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {mech.items.map((item, idx) => {
-                                const isJasa = isJasaType(item.item_type)
-                                return (
-                                  <tr key={idx} className="border-b last:border-0 hover:bg-white">
-                                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{formatDateShort(item.date)}</td>
-                                    <td className="px-4 py-2 text-gray-700 font-medium">{item.motor}</td>
-                                    <td className="px-4 py-2 text-gray-800">{item.item_name} {item.quantity > 1 ? `×${item.quantity}` : ''}</td>
-                                    <td className="px-4 py-2 text-center">
-                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isJasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                        {isJasa ? 'JASA' : 'PART'}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatRupiah(item.subtotal)}</td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr className="border-t bg-gray-100">
-                                <td colSpan={4} className="px-4 py-2 font-bold text-gray-700 text-right">Total {mech.mechanic_name}:</td>
-                                <td className="px-4 py-2 text-right font-bold text-primary">{formatRupiah(mech.total)}</td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+            {expandedMechanic === mech.name && (
+              <div className="border-t overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Tgl</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Pelanggan</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Motor / Plat</th>
+                      <th className="px-4 py-2 text-right font-medium text-gray-600">Jasa</th>
+                      <th className="px-4 py-2 text-right font-medium text-gray-600">Parts</th>
+                      <th className="px-4 py-2 text-right font-medium text-gray-600">Modal</th>
+                      <th className="px-4 py-2 text-right font-medium text-gray-600">Untung</th>
+                      <th className="px-4 py-2 text-right font-medium text-gray-600">Total</th>
+                      <th className="px-4 py-2 text-center font-medium text-gray-600">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mech.trx.map(t => (
+                      <tr key={t.id} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-2 text-gray-600 whitespace-nowrap">
+                          {new Date(t.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                        </td>
+                        <td className="px-4 py-2 font-medium text-gray-900">{t.customer_name || '-'}</td>
+                        <td className="px-4 py-2 text-gray-700">{t.motor}</td>
+                        <td className="px-4 py-2 text-right text-green-600">{formatRupiah(t.totalJasa)}</td>
+                        <td className="px-4 py-2 text-right text-blue-600">{formatRupiah(t.totalPart)}</td>
+                        <td className="px-4 py-2 text-right text-red-600">{formatRupiah(t.totalModal)}</td>
+                        <td className="px-4 py-2 text-right font-semibold text-green-700">{formatRupiah(t.totalUntung)}</td>
+                        <td className="px-4 py-2 text-right font-bold text-gray-900">{formatRupiah(t.total)}</td>
+                        <td className="px-4 py-2 text-center">
+                          {t.payment_status === 'LUNAS' ? (
+                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold border border-green-200">LUNAS</span>
+                          ) : t.payment_status === 'DP' ? (
+                            <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold border border-yellow-200">DP</span>
+                          ) : (
+                            <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold border border-red-200">BELUM</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
+        ))}
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Income Breakdown */}
-            <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b bg-gray-50">
-                <h2 className="text-sm font-semibold text-gray-700">Pemasukan per Kategori</h2>
-              </div>
-              <div className="p-4 space-y-3">
-                {Object.keys(incByCategory).length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">Tidak ada data</p>
-                ) : Object.entries(incByCategory).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => (
-                  <div key={cat}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs text-gray-600 truncate">{cat}</span>
-                      <span className="text-xs font-semibold text-gray-900 ml-2">{formatRupiah(amount)}</span>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${totalIncome > 0 ? (amount / totalIncome) * 100 : 0}%` }} />
-                    </div>
-                  </div>
+      {/* Kasir Transactions */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <ShoppingCart className="w-5 h-5 text-blue-600" /> Transaksi Kasir
+        </h2>
+        <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+          {kasirTrx.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">Belum ada transaksi kasir di periode ini</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Waktu</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">No. Nota</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Metode Bayar</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {kasirTrx.map(t => (
+                  <tr key={t.id} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-600">{new Date(t.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{t.transaction_number}</td>
+                    <td className="px-4 py-3"><span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded">{t.payment_method}</span></td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900">{formatRupiah(t.total)}</td>
+                  </tr>
                 ))}
-              </div>
-            </div>
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
 
-            {/* Expense Breakdown */}
-            <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b bg-gray-50">
-                <h2 className="text-sm font-semibold text-gray-700">Pengeluaran per Kategori</h2>
-              </div>
-              <div className="p-4 space-y-3">
-                {Object.keys(expByCategory).length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">Tidak ada data</p>
-                ) : Object.entries(expByCategory).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => (
-                  <div key={cat}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs text-gray-600 truncate">{cat}</span>
-                      <span className="text-xs font-semibold text-gray-900 ml-2">{formatRupiah(amount)}</span>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-red-500 rounded-full" style={{ width: `${totalExpense > 0 ? (amount / totalExpense) * 100 : 0}%` }} />
-                    </div>
-                  </div>
+      {/* Expenses */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <TrendingDown className="w-5 h-5 text-red-600" /> Pengeluaran
+        </h2>
+        <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+          {expenses.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">Belum ada pengeluaran di periode ini</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">Nominal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.map((e, idx) => (
+                  <tr key={idx} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-600">{new Date(e.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-4 py-3"><span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded">{e.category}</span></td>
+                    <td className="px-4 py-3 text-gray-700">{e.description || '-'}</td>
+                    <td className="px-4 py-3 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b bg-gray-50">
-                <h2 className="text-sm font-semibold text-gray-700">Penjualan per Metode Bayar</h2>
-              </div>
-              <div className="p-4 space-y-3">
-                {Object.keys(byMethod).length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">Tidak ada transaksi</p>
-                ) : Object.entries(byMethod).sort((a, b) => b[1] - a[1]).map(([method, amount]) => {
-                  const colors: Record<string, string> = { CASH: 'bg-green-500', QRIS: 'bg-blue-500', TRANSFER: 'bg-purple-500' }
-                  const totalTrxValue = transactions.reduce((s, t) => s + t.total, 0)
-                  return (
-                    <div key={method}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs text-gray-600">{method}</span>
-                        <span className="text-xs font-semibold text-gray-900">{formatRupiah(amount)}</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${colors[method] ?? 'bg-gray-400'}`} style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Nota Type Breakdown */}
-            <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b bg-gray-50">
-                <h2 className="text-sm font-semibold text-gray-700">Penjualan per Jenis Nota</h2>
-              </div>
-              <div className="p-4 space-y-3">
-                {Object.keys(byNotaType).length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">Tidak ada transaksi</p>
-                ) : Object.entries(byNotaType).sort((a, b) => b[1] - a[1]).map(([type, amount]) => {
-                  const colors: Record<string, string> = { 'Nota Besar': 'bg-orange-500', 'Nota Kecil': 'bg-blue-500' }
-                  const totalTrxValue = transactions.reduce((s, t) => s + t.total, 0)
-                  return (
-                    <div key={type}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs text-gray-600">{type}</span>
-                        <span className="text-xs font-semibold text-gray-900">{formatRupiah(amount)}</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${colors[type] ?? 'bg-gray-400'}`} style={{ width: `${totalTrxValue > 0 ? (amount / totalTrxValue) * 100 : 0}%` }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Print-only section */}
-          <style>{`
-            @media print {
-              body * { visibility: hidden; }
-              .print-area, .print-area * { visibility: visible; }
-              .print-area { position: fixed; left: 0; top: 0; width: 100%; }
-            }
-          `}</style>
-        </>
-      )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
