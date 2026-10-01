@@ -227,46 +227,50 @@ function OwnerAdminDashboard({ role }: { role: 'ADMIN' | 'OWNER' }) {
         </div>
       </div>
 
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Stok Produk</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard title="Total Produk" value={String(totalProducts)} icon={Package} color="blue" />
-          <StatCard title="Stok Menipis" value={String(lowStock)} icon={AlertTriangle} color="orange" />
-          <StatCard title="Stok Habis" value={String(outStock)} icon={XCircle} color="red" />
-        </div>
-      </div>
+      {role === 'ADMIN' && (
+        <>
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Stok Produk</h2>
+            <div className="grid grid-cols-3 gap-4">
+              <StatCard title="Total Produk" value={String(totalProducts)} icon={Package} color="blue" />
+              <StatCard title="Stok Menipis" value={String(lowStock)} icon={AlertTriangle} color="orange" />
+              <StatCard title="Stok Habis" value={String(outStock)} icon={XCircle} color="red" />
+            </div>
+          </div>
 
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Transaksi Terbaru</h2>
-        <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-          {recentTrx.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 text-sm">Belum ada transaksi</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Nomor</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Tanggal</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Metode</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTrx.map((trx: { transaction_number: string; total: number; payment_method: string; created_at: string }) => (
-                  <tr key={trx.transaction_number} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{trx.transaction_number}</td>
-                    <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{formatDateShort(trx.created_at)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatRupiah(trx.total)}</td>
-                    <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{trx.payment_method}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Transaksi Terbaru</h2>
+            <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+              {recentTrx.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 text-sm">Belum ada transaksi</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Nomor</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Tanggal</th>
+                      <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Metode</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentTrx.map((trx: { transaction_number: string; total: number; payment_method: string; created_at: string }) => (
+                      <tr key={trx.transaction_number} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-xs text-gray-700">{trx.transaction_number}</td>
+                        <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{formatDateShort(trx.created_at)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatRupiah(trx.total)}</td>
+                        <td className="px-4 py-3 text-center hidden sm:table-cell">
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{trx.payment_method}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
