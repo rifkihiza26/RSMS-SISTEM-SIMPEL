@@ -181,10 +181,16 @@ function OwnerDashboard() {
     queryKey: ['dashboard', 'recent-recaps'],
     queryFn: async () => {
       const { data } = await supabase.from('transactions')
-        .select('transaction_number, total, notes, created_at, mechanics(name)')
+        .select('transaction_number, total, notes, created_at, mechanics(name), transaction_items(subtotal, quantity, modal_price)')
         .like('notes', '%REKAPAN%')
         .order('created_at', { ascending: false }).limit(5)
-      return data ?? []
+      
+      return data?.map(tx => {
+        const items = tx.transaction_items || []
+        const modal = items.reduce((s, i) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
+        const untung = tx.total - modal
+        return { ...tx, modal, untung }
+      }) ?? []
     }
   })
 
@@ -223,6 +229,8 @@ function OwnerDashboard() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Nomor</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Tanggal</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Mekanik</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Modal</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Untung</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Total Tagihan</th>
                 </tr>
               </thead>
@@ -232,6 +240,8 @@ function OwnerDashboard() {
                     <td className="px-4 py-3 font-mono text-xs text-gray-700">{trx.transaction_number}</td>
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{formatDateShort(trx.created_at)}</td>
                     <td className="px-4 py-3 text-gray-800 font-medium">{(trx.mechanics as any)?.name || '-'}</td>
+                    <td className="px-4 py-3 text-right text-red-600 hidden md:table-cell">{formatRupiah(trx.modal)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-green-600 hidden sm:table-cell">{formatRupiah(trx.untung)}</td>
                     <td className="px-4 py-3 text-right font-bold text-gray-900">{formatRupiah(trx.total)}</td>
                   </tr>
                 ))}

@@ -37,6 +37,7 @@ export function Recaps() {
   const totalBarangModal = barangList.reduce((s, b) => s + (parseFloat(b.priceModal) || 0) * (parseInt(b.qty) || 1), 0)
   const totalAkhir = totalJasa + totalBarangJual
   const profitBarang = totalBarangJual - totalBarangModal
+  const totalUntung = totalJasa + profitBarang
 
   const addJasa = () => setJasaList([...jasaList, { id: crypto.randomUUID(), name: '', price: '' }])
   const removeJasa = (id: string) => setJasaList(jasaList.filter(j => j.id !== id))
@@ -249,10 +250,14 @@ export function Recaps() {
         </div>
 
         {/* Grand Total & Submit */}
-        <div className="bg-gray-900 text-white p-5 rounded-xl flex items-center justify-between">
+        <div className="bg-gray-900 text-white p-5 rounded-xl flex sm:items-center justify-between flex-col sm:flex-row gap-4">
           <div>
             <p className="text-gray-400 text-sm">Total Tagihan (Jasa + Jual Part)</p>
-            <p className="text-3xl font-bold mt-1">{formatRupiah(totalAkhir)}</p>
+            <p className="text-3xl font-bold mt-1 text-blue-400">{formatRupiah(totalAkhir)}</p>
+            <div className="flex gap-4 mt-3 text-sm">
+              <div className="bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700"><span className="text-gray-400">Total Modal:</span> <span className="text-red-400 font-semibold">{formatRupiah(totalBarangModal)}</span></div>
+              <div className="bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700"><span className="text-gray-400">Total Untung:</span> <span className="text-green-400 font-semibold">{formatRupiah(totalUntung)}</span></div>
+            </div>
           </div>
           <button type="submit" disabled={processing} className="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50">
             {processing ? 'Menyimpan...' : <><Save className="h-5 w-5"/> Simpan Rekapan</>}
