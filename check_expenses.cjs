@@ -1,6 +1,16 @@
-const fs = require('fs')
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
 
-// Using the same approach as we did to read env
-require('dotenv').config()
+const envFile = fs.readFileSync('.env', 'utf-8');
+let url = '', key = '';
+envFile.split('\n').forEach(line => {
+  if (line.startsWith('VITE_SUPABASE_URL=')) url = line.split('=')[1].trim();
+  if (line.startsWith('VITE_SUPABASE_ANON_KEY=')) key = line.split('=')[1].trim();
+});
 
-console.log(fs.readFileSync('src/features/expenses/Expenses.tsx', 'utf8').substring(0, 1500))
+const supabase = createClient(url, key);
+async function run() {
+  const { data, error } = await supabase.from('expenses').select('*').limit(1);
+  console.log("COLUMNS:", data ? Object.keys(data[0] || {}) : error);
+}
+run();

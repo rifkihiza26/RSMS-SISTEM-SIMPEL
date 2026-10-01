@@ -1,36 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
-import { formatRupiah, formatDateShort } from '@/lib/utils'
-import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, XCircle, Wallet } from 'lucide-react'
+const fs = require('fs');
+let content = fs.readFileSync('src/features/dashboard/Dashboard.tsx', 'utf-8');
 
-function StatCard({ title, value, icon: Icon, color = 'blue', subtitle }: {
-  title: string; value: string; icon: React.ElementType; color?: string; subtitle?: string
-}) {
-  const colors: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    red: 'bg-red-50 text-red-600',
-    orange: 'bg-orange-50 text-orange-600',
-    purple: 'bg-purple-50 text-purple-600',
-  }
-  return (
-    <div className="bg-white border rounded-xl p-5 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0 pr-2">
-          <p className="text-sm text-gray-500 font-medium truncate">{title}</p>
-          <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 truncate" title={value}>{value}</p>
-          {subtitle && <p className="text-xs text-gray-400 mt-1 truncate">{subtitle}</p>}
-        </div>
-        <div className={`p-2.5 rounded-lg ${colors[color]} flex-shrink-0 ml-3`}>
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AdminDashboard() {
+const newAdminDashboard = `function AdminDashboard() {
   const today = new Date().toISOString().split('T')[0]
   const monthStart = today.slice(0, 7) + '-01'
 
@@ -151,50 +122,11 @@ function AdminDashboard() {
       </div>
     </div>
   )
-}
+}`
 
-function KasirDashboard() {
-  const today = new Date().toISOString().split('T')[0]
+// Use regex to replace AdminDashboard definition completely.
+// Find function AdminDashboard() { ... } down to function KasirDashboard()
+const regex = /function AdminDashboard\(\) \{[\s\S]*?\}\n\nfunction KasirDashboard\(\) \{/g;
+content = content.replace(regex, newAdminDashboard + '\n\nfunction KasirDashboard() {');
 
-  const { data: stats } = useQuery({
-    queryKey: ['dashboard', 'kasir-stats', today],
-    queryFn: async () => {
-      // Gunakan offset WIB (UTC+7) agar rentang tanggal cocok dengan waktu lokal
-      const { data: trxs } = await supabase.from('transactions')
-        .select('total, payment_method')
-        .in('status', ['COMPLETED', 'PAID'])
-        .gte('created_at', today + 'T00:00:00+07:00')
-        .lte('created_at', today + 'T23:59:59+07:00')
-      const all = trxs ?? []
-      return {
-        total: all.reduce((s, t) => s + t.total, 0),
-        count: all.length,
-        cash: all.filter(t => t.payment_method === 'CASH').reduce((s, t) => s + t.total, 0),
-        qris: all.filter(t => t.payment_method === 'QRIS').reduce((s, t) => s + t.total, 0),
-        transfer: all.filter(t => t.payment_method === 'TRANSFER').reduce((s, t) => s + t.total, 0),
-      }
-    }
-  })
-
-    return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Kasir</h1>
-        <p className="text-sm text-gray-500 mt-1">{formatDateShort(new Date())}</p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCard title="Penjualan Hari Ini" value={formatRupiah(stats?.total ?? 0)} icon={TrendingUp} color="green" />
-        <StatCard title="Jumlah Transaksi" value={String(stats?.count ?? 0)} icon={ShoppingCart} color="blue" />
-        <StatCard title="Cash" value={formatRupiah(stats?.cash ?? 0)} icon={Wallet} color="purple" />
-        <StatCard title="QRIS" value={formatRupiah(stats?.qris ?? 0)} icon={Wallet} color="orange" />
-        <StatCard title="Transfer" value={formatRupiah(stats?.transfer ?? 0)} icon={Wallet} color="blue" />
-      </div>
-    </div>
-  )
-}
-
-export function Dashboard() {
-  const { isAdmin } = useAuth()
-  return isAdmin ? <AdminDashboard /> : <KasirDashboard />
-}
+fs.writeFileSync('src/features/dashboard/Dashboard.tsx', content);

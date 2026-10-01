@@ -1,10 +1,15 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { formatRupiah, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils'
-import { Users, Printer } from 'lucide-react'
+import { Users, Printer, Save } from 'lucide-react'
+import { generateExpenseNumber } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function Payroll() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  const [saving, setSaving] = useState(false)
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
   })
@@ -48,6 +53,35 @@ export function Payroll() {
   const totalBagiHasil = (totalJasaKotor * persen) / 100
   const tambahanUangMakan = parseFloat(uangMakan) || 0
   const totalGajiBersih = totalBagiHasil + tambahanUangMakan
+
+
+  const handleSave = async () => {
+    if (!confirm('Simpan penggajian ini ke tabel Pengeluaran?')) return;
+    setSaving(true);
+    try {
+      const mechName = mechanics.find(m => m.id === selectedMechanic)?.name;
+      const desc = `Gaji ${mechName} periode ${dateFrom} - ${dateTo} (${percentage}% + Makan)`;
+      
+      const { error } = await supabase.from('expenses').insert({
+        expense_number: generateExpenseNumber(),
+        category: 'PENGGAJIAN',
+        mechanic_id: selectedMechanic,
+        amount: totalGajiBersih,
+        payment_method: 'CASH',
+        description: desc,
+        date: new Date().toISOString().split('T')[0],
+        created_by: user?.id ?? null
+      });
+
+      if (error) throw error;
+      alert('Berhasil disimpan ke pengeluaran!');
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    } catch (err: any) {
+      alert('Gagal menyimpan: ' + err.message);
+    }
+    setSaving(false);
+  }
 
   const handlePrint = () => {
     const mechName = mechanics.find(m => m.id === selectedMechanic)?.name
@@ -162,7 +196,10 @@ export function Payroll() {
 
               <div className="flex items-center justify-between mb-3 border-b pb-2">
                 <h3 className="font-bold text-gray-800">Rincian Jasa Dikerjakan ({txItems.length} item)</h3>
-                <button onClick={handlePrint} className="text-sm bg-gray-900 hover:bg-gray-800 text-white px-4 py-1.5 rounded-lg flex items-center gap-1.5">
+                <button onClick={handleSave} disabled={saving || totalGajiBersih <= 0} className="text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg flex items-center gap-1.5">
+    <Save className="w-4 h-4" /> {saving ? 'Menyimpan...' : 'Bayar & Simpan'}
+  </button>
+  <button onClick={handlePrint} className="text-sm bg-gray-900 hover:bg-gray-800 text-white px-4 py-1.5 rounded-lg flex items-center gap-1.5">
                   <Printer className="w-4 h-4" /> Cetak Slip
                 </button>
               </div>
