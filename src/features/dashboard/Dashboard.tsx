@@ -31,7 +31,7 @@ function StatCard({ title, value, icon: Icon, color = 'blue', subtitle }: {
   )
 }
 
-function AdminDashboard() {
+function OwnerAdminDashboard({ role }: { role: 'ADMIN' | 'OWNER' }) {
   const today = new Date().toISOString().split('T')[0]
   const monthStart = today.slice(0, 7) + '-01'
   const bulanLabel = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
@@ -197,8 +197,8 @@ function AdminDashboard() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard Owner / Admin</h1>
-          <p className="text-sm text-gray-500 mt-1">Laporan Laba Rugi & Rekap Bulan Ini ({formatDateShort(new Date())})</p>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard {role === 'ADMIN' ? 'Admin' : 'Owner'}</h1>
+          <p className="text-sm text-gray-500 mt-1">Rekap Bulan Ini — {formatDateShort(new Date())}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={downloadPDF}
@@ -213,7 +213,7 @@ function AdminDashboard() {
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Laba Rugi Bulan Ini — {bulanLabel}</h2>
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Bulan Ini — {bulanLabel}</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard title="Pemasukan Jasa" value={formatRupiah(totalJasa)} icon={TrendingUp} color="blue" />
           <StatCard title="Pemasukan Barang" value={formatRupiah(totalBarang)} icon={Package} color="blue" />
@@ -312,6 +312,8 @@ function KasirDashboard() {
 }
 
 export function Dashboard() {
-  const { isAdmin } = useAuth()
-  return isAdmin ? <AdminDashboard /> : <KasirDashboard />
+  const { isAdmin, isOwner } = useAuth()
+  if (isAdmin) return <OwnerAdminDashboard role="ADMIN" />
+  if (isOwner) return <OwnerAdminDashboard role="OWNER" />
+  return <KasirDashboard />
 }
