@@ -146,9 +146,16 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
   const totalModalBarang = monthItems.filter(i => ['PRODUCT', 'MANUAL_BARANG', 'MANUAL'].includes(i.item_type)).reduce((s, i) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
 
   const totalGaji = monthExpenses.filter(e => e.category === 'Penggajian' || e.category === 'PENGGAJIAN').reduce((s, e) => s + (e.amount || 0), 0)
-  const totalPengeluaranLain = monthExpenses.filter(e => e.category !== 'Penggajian' && e.category !== 'PENGGAJIAN').reduce((s, e) => s + (e.amount || 0), 0)
+  
+  // Pisahkan pengeluaran khusus belanja sparepart agar tidak motong laba (karena sudah dipotong HPP)
+  const isBelanja = (cat: string) => cat && cat.toLowerCase().includes('belanja') && (cat.toLowerCase().includes('part') || cat.toLowerCase().includes('stok'));
+  const totalBelanjaParts = monthExpenses.filter(e => isBelanja(e.category)).reduce((s, e) => s + (e.amount || 0), 0)
+  
+  // Pengeluaran operasional murni (diluar gaji dan belanja sparepart)
+  const totalPengeluaranLain = monthExpenses.filter(e => e.category !== 'Penggajian' && e.category !== 'PENGGAJIAN' && !isBelanja(e.category)).reduce((s, e) => s + (e.amount || 0), 0)
 
   const profitKotor = totalJasa + (totalBarang - totalModalBarang)
+  // Laba Bersih HANYA dikurangi operasional dan gaji, BUKAN belanja sparepart (karena sudah dari totalModalBarang)
   const profitBersih = profitKotor - (totalGaji + totalPengeluaranLain)
 
   function downloadPDF() {
@@ -318,14 +325,14 @@ function useDashboardData(startDate: string, endDate: string, periodLabel: strin
     XLSX.writeFile(wb, `Rekapan-${periodLabel.replace(/ /g, '-')}.xlsx`)
   }
 
-  return { totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, profitKotor, profitBersih, downloadPDF, downloadExcel }
+  return { totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, totalBelanjaParts, profitKotor, profitBersih, downloadPDF, downloadExcel }
 }
 // ------------------------------------------
 // OWNER DASHBOARD (Helicopter View)
 // ------------------------------------------
 function OwnerDashboard() {
   const { startDate, endDate, periodLabel, FilterUI } = useDashboardFilter()
-  const { totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, profitBersih, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
+  const { totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, totalBelanjaParts, profitBersih, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
 
   return (
     <div className="space-y-6">
@@ -355,9 +362,10 @@ function OwnerDashboard() {
       </div>
 
       {/* Baris Ringkasan */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard title="PEMASUKAN TOTAL" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Penjualan Parts" />
-        <StatCard title="PENGELUARAN" value={formatRupiah(totalGaji + totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Gaji + Operasional" />
+        <StatCard title="PENGELUARAN OPS" value={formatRupiah(totalGaji + totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Gaji + Operasional" />
+        <StatCard title="BELANJA PARTS (INFO)" value={formatRupiah(totalBelanjaParts)} icon={TrendingDown} color="purple" big subtitle="Tidak potong laba lagi" />
         <StatCard title="LABA BERSIH" value={formatRupiah(profitBersih)} icon={Wallet} color={profitBersih >= 0 ? 'blue' : 'red'} big subtitle={periodLabel} />
       </div>
     </div>
@@ -370,7 +378,7 @@ function OwnerDashboard() {
 // ------------------------------------------
 function AdminDashboard() {
   const { startDate, endDate, periodLabel, FilterUI } = useDashboardFilter()
-  const { totalJasa, totalBarang, totalModalBarang, totalPengeluaranLain, profitKotor, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
+  const { totalJasa, totalBarang, totalModalBarang, totalPengeluaranLain, totalBelanjaParts, profitKotor, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
 
   const { data: products = [] } = useQuery({
     queryKey: ['dashboard', 'products-stock'],
@@ -422,10 +430,11 @@ function AdminDashboard() {
       </div>
 
       {/* Baris Ringkasan */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <StatCard title="TOTAL PEMASUKAN" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Penjualan Parts" />
-        <StatCard title="PENGELUARAN" value={formatRupiah(totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Operasional Bengkel" />
-        <StatCard title="LABA KOTOR" value={formatRupiah(profitKotor)} icon={Wallet} color="purple" big subtitle="Sebelum Gaji & Ops" />
+        <StatCard title="PENGELUARAN OPS" value={formatRupiah(totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Diluar Gaji & Belanja" />
+        <StatCard title="BELANJA STOK (INFO)" value={formatRupiah(totalBelanjaParts)} icon={TrendingDown} color="purple" big subtitle="Arus Kas Belanja" />
+        <StatCard title="LABA KOTOR" value={formatRupiah(profitKotor)} icon={Wallet} color="blue" big subtitle="Sebelum Gaji & Ops" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

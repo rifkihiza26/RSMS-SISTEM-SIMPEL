@@ -1,13 +1,13 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/features/reports/Reports.tsx', 'utf-8');
+let code = fs.readFileSync('src/features/dashboard/Dashboard.tsx', 'utf-8');
 
-// 1. Remove TrendingUp & Wallet
-code = code.replace(/TrendingUp, TrendingDown, Wallet, /g, 'TrendingDown, ');
+// fix type
+code = code.replace(/const isBelanja = \(cat\) =>/g, "const isBelanja = (cat: string) =>");
 
-// 2. Remove totalUntung calculation since it's unused now (we use untungParts)
-code = code.replace(/const totalUntung = rekapanWithDetail.reduce\(\(s, t\) => s \+ t.totalUntung, 0\)/g, '');
+// fix OwnerDashboard extraction
+code = code.replace(/const \{ totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, profitBersih, downloadPDF, downloadExcel \} = useDashboardData/g, "const { totalJasa, totalBarang, totalModalBarang, totalGaji, totalPengeluaranLain, totalBelanjaParts, profitBersih, downloadPDF, downloadExcel } = useDashboardData");
 
-// 3. Remove labaKotor calculation (unused in new PDF UI)
-code = code.replace(/const labaKotor = totalRekapan \+ totalKasir - totalModal;/g, '');
+// fix AdminDashboard extraction
+code = code.replace(/const \{ totalJasa, totalBarang, totalModalBarang, totalPengeluaranLain, profitKotor, downloadPDF, downloadExcel \} = useDashboardData/g, "const { totalJasa, totalBarang, totalModalBarang, totalPengeluaranLain, totalBelanjaParts, profitKotor, downloadPDF, downloadExcel } = useDashboardData");
 
-fs.writeFileSync('src/features/reports/Reports.tsx', code);
+fs.writeFileSync('src/features/dashboard/Dashboard.tsx', code);

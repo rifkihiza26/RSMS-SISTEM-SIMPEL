@@ -71,13 +71,20 @@ export function Expenses() {
     }
   })
 
-  const { data: categories = [] } = useQuery({
+  
+  const { data: dbCategories = [] } = useQuery({
     queryKey: ['expense-categories'],
     queryFn: async () => {
       const { data } = await supabase.from('expense_categories').select('name').order('name')
       return (data ?? []).map((c: any) => c.name)
     }
   })
+  
+  // Ensure "Belanja Sparepart" is always available
+  const categories = dbCategories.includes('Belanja Sparepart') 
+    ? dbCategories 
+    : ['Belanja Sparepart', ...dbCategories];
+
 
   const { data: mechanics = [] } = useQuery({
     queryKey: ['mechanics-active'],
