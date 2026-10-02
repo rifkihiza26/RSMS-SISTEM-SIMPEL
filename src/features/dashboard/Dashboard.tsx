@@ -346,9 +346,17 @@ function OwnerDashboard() {
 
       {FilterUI}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="PEMASUKAN TOTAL" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Parts Kasir" />
-        <StatCard title="UNTUNG PARTS" value={formatRupiah(totalBarang - totalModalBarang)} icon={TrendingUp} color="blue" big subtitle="Dari HPP Parts" />
+      {/* Baris Rincian */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Total Jasa Servis" value={formatRupiah(totalJasa)} icon={TrendingUp} color="green" subtitle="Pendapatan jasa mekanik" />
+        <StatCard title="Penjualan Parts" value={formatRupiah(totalBarang)} icon={TrendingUp} color="blue" subtitle="Harga jual parts (bruto)" />
+        <StatCard title="Modal / HPP Parts" value={formatRupiah(totalModalBarang)} icon={TrendingDown} color="red" subtitle="Harga beli / kulakan" />
+        <StatCard title="Untung dari Parts" value={formatRupiah(totalBarang - totalModalBarang)} icon={TrendingUp} color="green" subtitle="Selisih jual - modal" />
+      </div>
+
+      {/* Baris Ringkasan */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard title="PEMASUKAN TOTAL" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Penjualan Parts" />
         <StatCard title="PENGELUARAN" value={formatRupiah(totalGaji + totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Gaji + Operasional" />
         <StatCard title="LABA BERSIH" value={formatRupiah(profitBersih)} icon={Wallet} color={profitBersih >= 0 ? 'blue' : 'red'} big subtitle={periodLabel} />
       </div>
@@ -362,7 +370,7 @@ function OwnerDashboard() {
 // ------------------------------------------
 function AdminDashboard() {
   const { startDate, endDate, periodLabel, FilterUI } = useDashboardFilter()
-  const { totalJasa, totalBarang, totalPengeluaranLain, profitKotor, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
+  const { totalJasa, totalBarang, totalModalBarang, totalPengeluaranLain, profitKotor, downloadPDF, downloadExcel } = useDashboardData(startDate, endDate, periodLabel)
 
   const { data: products = [] } = useQuery({
     queryKey: ['dashboard', 'products-stock'],
@@ -405,11 +413,19 @@ function AdminDashboard() {
 
       {FilterUI}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Penjualan" value={formatRupiah(totalBarang)} icon={ShoppingCart} color="blue" subtitle="Barang / Part" />
-        <StatCard title="Total Jasa" value={formatRupiah(totalJasa)} icon={TrendingUp} color="green" subtitle="Servis Mekanik" />
-        <StatCard title="Pengeluaran Lain" value={formatRupiah(totalPengeluaranLain)} icon={TrendingDown} color="orange" subtitle="Operasional" />
-        <StatCard title="Laba Kotor" value={formatRupiah(profitKotor)} icon={Wallet} color="purple" subtitle="Sblm Gaji & Ops" />
+      {/* Baris Rincian */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Total Jasa Servis" value={formatRupiah(totalJasa)} icon={TrendingUp} color="green" subtitle="Pendapatan jasa mekanik" />
+        <StatCard title="Penjualan Parts" value={formatRupiah(totalBarang)} icon={ShoppingCart} color="blue" subtitle="Harga jual parts (bruto)" />
+        <StatCard title="Modal / HPP Parts" value={formatRupiah(totalModalBarang)} icon={TrendingDown} color="red" subtitle="Harga beli / kulakan" />
+        <StatCard title="Untung dari Parts" value={formatRupiah(totalBarang - totalModalBarang)} icon={TrendingUp} color="green" subtitle="Selisih jual - modal" />
+      </div>
+
+      {/* Baris Ringkasan */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard title="TOTAL PEMASUKAN" value={formatRupiah(totalJasa + totalBarang)} icon={TrendingUp} color="green" big subtitle="Jasa + Penjualan Parts" />
+        <StatCard title="PENGELUARAN" value={formatRupiah(totalPengeluaranLain)} icon={TrendingDown} color="orange" big subtitle="Operasional Bengkel" />
+        <StatCard title="LABA KOTOR" value={formatRupiah(profitKotor)} icon={Wallet} color="purple" big subtitle="Sebelum Gaji & Ops" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
