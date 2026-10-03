@@ -159,7 +159,7 @@ export function Reports() {
 
   // Separate rekapan vs kasir
   const rekapanTrx = allTransactions.filter(t => isRekapan(t.notes))
-  const kasirTrx = allTransactions.filter(t => !isRekapan(t.notes))
+  let kasirTrx = allTransactions.filter(t => !isRekapan(t.notes))
 
   // Build item map
   const itemsByTrx = useMemo(() => {
@@ -191,27 +191,41 @@ export function Reports() {
 
   if (mechanicFilter !== 'ALL') {
     rekapanWithDetail = rekapanWithDetail.filter(r => r.mekanik.toLowerCase() === mechanicFilter.toLowerCase())
+    kasirTrx = [] // Kasir doesn't have a mechanic, so it shouldn't be included in mechanic-specific stats
   }
 
   // Summary numbers
   const totalRekapan = rekapanWithDetail.reduce((s, t) => s + t.total, 0)
   const totalKasir = kasirTrx.reduce((s, t) => s + t.total, 0)
-  const totalModal = rekapanWithDetail.reduce((s, t) => s + t.totalModal, 0)
+  
+  const totalModalRekapan = rekapanWithDetail.reduce((s, t) => s + t.totalModal, 0)
+  const totalModalKasir = kasirTrx.reduce((s, t) => {
+    const items = itemsByTrx[t.id] || []
+    return s + items.reduce((sum, i) => sum + ((i.modal_price || 0) * (i.quantity || 1)), 0)
+  }, 0)
+  const totalModal = totalModalRekapan + totalModalKasir
   
   const totalJasaAll = rekapanWithDetail.reduce((s, t) => s + t.totalJasa, 0)
-  const totalPartAll = rekapanWithDetail.reduce((s, t) => s + t.totalPart, 0)
+  
+  const totalPartRekapan = rekapanWithDetail.reduce((s, t) => s + t.totalPart, 0)
+  // Total Part Gross = dari rekapan (totalPart) + dari kasir (totalKasir) karena kasir itu jual barang
+  const totalPartAll = totalPartRekapan + totalKasir
+  
   const isBelanja = (cat: string) => cat && cat.toLowerCase().includes('belanja') && (cat.toLowerCase().includes('part') || cat.toLowerCase().includes('stok'));
   const pengeluaranBelanjaParts = expenses.filter(e => isBelanja(e.category)).reduce((s, e) => s + e.amount, 0);
   const pengeluaranOperasional = expenses.filter(e => !isBelanja(e.category)).reduce((s, e) => s + e.amount, 0);
   
-  const totalPengeluaran = pengeluaranOperasional; // Use this variable name for existing UI (so it means Operasional only)
+  const totalPengeluaran = pengeluaranOperasional; 
   
+  // Untung parts gabungan dari Rekapan + Kasir
   const untungParts = totalPartAll - totalModal
+  
   const hakMekanik = totalJasaAll * 0.5   // 50% jasa adalah hak mekanik
   const jasaBengkel = totalJasaAll * 0.5  // 50% jasa adalah hak bengkel
-  const totalPemasukanKotor = totalJasaAll + totalPartAll + totalKasir
-  // Bersih = jatah jasa bengkel (50%) + untung parts + kasir - pengeluaran ops
-  const labaRekapan = jasaBengkel + untungParts + totalKasir - pengeluaranOperasional
+  const totalPemasukanKotor = totalJasaAll + totalPartAll
+  
+  // Bersih = jatah jasa bengkel (50%) + untung parts gabungan - pengeluaran ops
+  const labaRekapan = jasaBengkel + untungParts - pengeluaranOperasional
   const totalPiutang = rekapanWithDetail.reduce((s, t) => s + (t.sisa > 0 ? t.sisa : 0), 0)
 
   // Group rekapan by mechanic
@@ -362,12 +376,12 @@ export function Reports() {
             <tr><td style="padding:7px 0; color:#555;">Total Jasa Servis</td><td style="text-align:right; font-weight:bold; color:#16a34a;">${formatRupiah(totalJasaAll)}</td></tr>
             <tr><td style="padding:4px 0 4px 16px; color:#888; font-style:italic; font-size:12px;">— Hak Mekanik (50% Jasa)</td><td style="text-align:right; color:#dc2626; font-weight:bold; font-size:12px;">-${formatRupiah(hakMekanik)}</td></tr>
             <tr><td style="padding:4px 0 7px 16px; color:#555; font-size:12px;">Hak Bengkel (50% Jasa)</td><td style="text-align:right; color:#16a34a; font-weight:bold; font-size:12px;">${formatRupiah(jasaBengkel)}</td></tr>
-            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Penjualan Parts (Bruto)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(totalPartAll)}</td></tr>
-            <tr><td style="padding:7px 0; color:#555;">Pendapatan Kasir</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
+            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Penjualan Parts (Rekapan)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(totalPartRekapan)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">Penjualan Kasir (Ecer)</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
             <tr><td style="padding:7px 0; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">TOTAL PEMASUKAN KOTOR</td><td style="text-align:right; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">${formatRupiah(totalPemasukanKotor)}</td></tr>
             
-            <tr><td style="padding:7px 0; color:#555;">Modal / HPP Parts</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalModal)}</td></tr>
-            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Untung dari Parts</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(untungParts)}</td></tr>
+            <tr><td style="padding:7px 0; color:#555;">Modal / HPP Parts (Semua)</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalModal)}</td></tr>
+            <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Untung dari Parts (Semua)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(untungParts)}</td></tr>
             <tr><td style="padding:7px 0; color:#555;">Pengeluaran Ops & Gaji</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(pengeluaranOperasional)}</td></tr>
             ${pengeluaranBelanjaParts > 0 ? `<tr><td style="padding:7px 0; color:#888;">(Info: Uang keluar utk Belanja Stok)</td><td style="text-align:right; font-weight:normal; color:#888;">(${formatRupiah(pengeluaranBelanjaParts)})</td></tr>` : ''}
             ${totalPiutang > 0 ? `<tr><td style="padding:7px 0; color:#555;">Piutang Belum Lunas</td><td style="text-align:right; font-weight:bold; color:#ea580c;">${formatRupiah(totalPiutang)}</td></tr>` : ''}
@@ -569,8 +583,8 @@ export function Reports() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: 'Total Jasa Servis', value: formatRupiah(totalJasaAll), color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
-              { label: 'Penjualan Parts', value: formatRupiah(totalPartAll), color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
-              { label: 'Pendapatan Kasir', value: formatRupiah(totalKasir), color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+              { label: 'Penjualan Parts (Rekapan)', value: formatRupiah(totalPartRekapan), color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+              { label: 'Penjualan Kasir (Ecer)', value: formatRupiah(totalKasir), color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
               { label: 'Total Pemasukan Kotor', value: formatRupiah(totalPemasukanKotor), color: 'text-gray-900', bg: 'bg-gray-100', border: 'border-gray-300' },
             ].map(c => (
               <div key={c.label} className={`${c.bg} border ${c.border} rounded-xl p-4 shadow-sm`}>
