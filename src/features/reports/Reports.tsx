@@ -615,7 +615,7 @@ export function Reports() {
           <div className={`${labaRekapan >= 0 ? 'bg-blue-50 border-blue-300' : 'bg-red-50 border-red-300'} border rounded-xl p-4 shadow-sm`}>
             <p className="text-sm text-gray-500 font-medium mb-1">Total Pendapatan Bersih (Hak Bengkel)</p>
             <p className={`text-2xl font-bold ${labaRekapan >= 0 ? 'text-blue-800' : 'text-red-700'}`}>{formatRupiah(labaRekapan)}</p>
-            <p className="text-xs text-gray-400 mt-1">50% Jasa Bengkel + Untung Parts + Kasir - Pengeluaran Ops</p>
+            <p className="text-xs text-gray-400 mt-1">50% Jasa Bengkel + Untung dari Parts - Pengeluaran Ops & Gaji</p>
           </div>
         </>
       ) : (
