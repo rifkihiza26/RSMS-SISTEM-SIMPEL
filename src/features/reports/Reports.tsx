@@ -178,7 +178,7 @@ export function Reports() {
     const totalJasa = jasaItems.reduce((s, i) => s + (i.subtotal || 0), 0)
     const totalPart = partItems.reduce((s, i) => s + (i.subtotal || 0), 0)
     const totalModal = items.reduce((s, i) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
-    const totalUntung = t.total - totalModal
+    const totalUntung = totalPart - totalModal
     return {
       ...t,
       motor: extractMotor(t.notes),
@@ -212,12 +212,14 @@ export function Reports() {
 
   // Group rekapan by mechanic
   const byMechanic = useMemo(() => {
-    const map: Record<string, { name: string; trx: typeof rekapanWithDetail; total: number }> = {}
+    const map: Record<string, { name: string; trx: typeof rekapanWithDetail; total: number; totalJasa: number; totalUntungParts: number }> = {}
     for (const t of rekapanWithDetail) {
       const key = t.mekanik
-      if (!map[key]) map[key] = { name: key, trx: [], total: 0 }
+      if (!map[key]) map[key] = { name: key, trx: [], total: 0, totalJasa: 0, totalUntungParts: 0 }
       map[key].trx.push(t)
       map[key].total += t.total
+      map[key].totalJasa += t.totalJasa
+      map[key].totalUntungParts += t.totalUntung
     }
     return Object.values(map).sort((a, b) => b.total - a.total)
   }, [rekapanWithDetail])
@@ -326,8 +328,12 @@ export function Reports() {
             <tr><td style="padding:7px 0; color:#555;">Modal / HPP Parts</td><td style="text-align:right; font-weight:bold; color:#dc2626;">-${formatRupiah(totalModal)}</td></tr>
             <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Untung dari Parts</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(untungParts)}</td></tr>
             <tr>
-              <td style="padding:12px 0 8px; border-top:2px solid #1f2937; font-size:16px; font-weight:bold; color:#111;">TOTAL KONTRIBUSI (JASA + UNTUNG PARTS)</td>
-              <td style="text-align:right; font-size:18px; font-weight:bold; border-top:2px solid #1f2937; color:#1d4ed8">${formatRupiah(totalJasaAll + untungParts)}</td>
+              <td style="padding:12px 0 8px; border-top:2px solid #1f2937; font-size:14px; font-weight:bold; color:#111;">HAK MEKANIK (50% JASA)</td>
+              <td style="text-align:right; font-size:16px; font-weight:bold; border-top:2px solid #1f2937; color:#166534">${formatRupiah(totalJasaAll * 0.5)}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0 8px; font-size:14px; font-weight:bold; color:#111;">HAK BENGKEL (50% JASA + UNTUNG PARTS)</td>
+              <td style="text-align:right; font-size:16px; font-weight:bold; color:#1d4ed8">${formatRupiah((totalJasaAll * 0.5) + untungParts)}</td>
             </tr>
           </tbody>
         </table>
@@ -339,7 +345,7 @@ export function Reports() {
         <thead><tr>
           <th>Tanggal</th><th>Pelanggan</th><th>Motor / Plat</th><th>Mekanik</th>
           <th class="right">Jasa</th><th class="right">Parts</th>
-          <th class="right">Modal</th><th class="right">Untung</th>
+          <th class="right">Modal</th><th class="right">Untung Parts</th>
           <th class="right">Total</th><th class="center">Status</th>
         </tr></thead>
         <tbody>${rekapanRows}</tbody>
@@ -389,7 +395,7 @@ export function Reports() {
 
     // Sheet 2: Rekapan Detail
     const rekapRows = [
-      ['Tanggal', 'Pelanggan', 'Motor / Plat', 'Mekanik', 'Total Jasa', 'Total Parts', 'Total Modal', 'Total Untung', 'Total Tagihan', 'Dibayar', 'Sisa Hutang', 'Status'],
+      ['Tanggal', 'Pelanggan', 'Motor / Plat', 'Mekanik', 'Total Jasa', 'Total Parts', 'Total Modal', 'Untung Parts', 'Total Tagihan', 'Dibayar', 'Sisa Hutang', 'Status'],
       ...rekapanWithDetail.map(t => [
         new Date(t.created_at).toLocaleString('id-ID'),
         t.customer_name || '-',
@@ -581,7 +587,7 @@ export function Reports() {
                       <th className="px-4 py-2 text-right font-medium text-gray-600">Jasa</th>
                       <th className="px-4 py-2 text-right font-medium text-gray-600">Parts</th>
                       <th className="px-4 py-2 text-right font-medium text-gray-600">Modal</th>
-                      <th className="px-4 py-2 text-right font-medium text-gray-600">Untung</th>
+                      <th className="px-4 py-2 text-right font-medium text-gray-600">Untung Parts</th>
                       <th className="px-4 py-2 text-right font-medium text-gray-600">Total</th>
                       <th className="px-4 py-2 text-center font-medium text-gray-600">Status</th>
                     </tr>
@@ -612,6 +618,26 @@ export function Reports() {
                     ))}
                   </tbody>
                 </table>
+                <div className="bg-blue-50 border-t border-blue-100 p-4 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                  <div className="flex gap-4">
+                    <div className="bg-white px-3 py-2 rounded-lg border shadow-sm">
+                      <p className="text-xs text-gray-500 font-medium">Total Jasa Servis</p>
+                      <p className="text-lg font-bold text-gray-900">{formatRupiah(mech.totalJasa)}</p>
+                    </div>
+                    <div className="bg-white px-3 py-2 rounded-lg border shadow-sm">
+                      <p className="text-xs text-green-600 font-medium flex items-center gap-1">Hak Mekanik (50%)</p>
+                      <p className="text-lg font-bold text-green-700">{formatRupiah(mech.totalJasa * 0.5)}</p>
+                    </div>
+                    <div className="bg-white px-3 py-2 rounded-lg border shadow-sm">
+                      <p className="text-xs text-blue-600 font-medium">Hak Bengkel (50%)</p>
+                      <p className="text-lg font-bold text-blue-700">{formatRupiah(mech.totalJasa * 0.5)}</p>
+                    </div>
+                  </div>
+                  <div className="bg-white px-3 py-2 rounded-lg border shadow-sm min-w-[150px] text-right">
+                    <p className="text-xs text-gray-500 font-medium">Total Untung Parts (Bengkel)</p>
+                    <p className="text-lg font-bold text-gray-900">{formatRupiah(mech.totalUntungParts)}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
