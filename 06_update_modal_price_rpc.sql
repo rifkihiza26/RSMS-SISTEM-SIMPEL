@@ -3,9 +3,6 @@
 -- Jalankan di Supabase SQL Editor
 -- ============================================================
 
--- 1. Update fungsi pay_open_bill agar menyimpan modal_price dari payload items
--- (sync_open_bill_v2 hanya menyimpan sementara ke draft, pay_open_bill yang finalize)
-
 CREATE OR REPLACE FUNCTION public.pay_open_bill(
   p_tx_id uuid,
   p_subtotal numeric,
@@ -42,9 +39,10 @@ BEGIN
   -- Insert items baru dengan modal_price
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
-    -- Tentukan modal_price
+    -- Tentukan modal_price dari payload
     v_modal_price := COALESCE((v_item->>'modal_price')::numeric, 0);
-    -- Jika masih 0 dan ada product_id, ambil dari tabel products
+
+    -- Jika masih 0 dan ada product_id, ambil cost_price dari tabel products
     IF v_modal_price = 0 AND (v_item->>'product_id') IS NOT NULL AND (v_item->>'product_id') != '' THEN
       SELECT cost_price INTO v_modal_price FROM products WHERE id = (v_item->>'product_id')::uuid;
       v_modal_price := COALESCE(v_modal_price, 0);
@@ -53,7 +51,7 @@ BEGIN
     INSERT INTO transaction_items (
       transaction_id, item_type, product_id, service_id,
       item_name, sku, quantity, unit_price, subtotal, modal_price,
-      stock_tracked, is_service
+      stock_tracked
     )
     VALUES (
       p_tx_id,
@@ -66,11 +64,10 @@ BEGIN
       (v_item->>'unit_price')::numeric,
       (v_item->>'subtotal')::numeric,
       v_modal_price,
-      COALESCE((v_item->>'stock_tracked')::boolean, false),
-      COALESCE((v_item->>'is_service')::boolean, false)
+      COALESCE((v_item->>'stock_tracked')::boolean, false)
     );
 
-    -- Update stok jika product
+    -- Kurangi stok jika product
     IF COALESCE((v_item->>'stock_tracked')::boolean, false) = true
        AND (v_item->>'product_id') IS NOT NULL
        AND (v_item->>'product_id') != '' THEN
