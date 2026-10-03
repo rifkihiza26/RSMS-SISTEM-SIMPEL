@@ -252,14 +252,44 @@ export function Reports() {
       </tr>
     `).join('')
 
-    const kasirRows = kasirTrx.map(t => `
-      <tr>
-        <td>${new Date(t.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-        <td>${t.transaction_number}</td>
-        <td>${t.payment_method || '-'}</td>
-        <td class="right bold green">${formatRupiah(t.total)}</td>
+    const kasirRows = kasirTrx.map(t => {
+      const items = itemsByTrx[t.id] || []
+      const totalModal = items.reduce((s, i) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
+      const untung = t.total - totalModal
+      
+      const itemsHtml = items.map(i => `
+        <tr style="background:#f9fafb;">
+           <td colspan="2" style="padding-left:16px; font-size:11px; color:#374151;">- ${i.item_name}</td>
+           <td class="center" style="font-size:11px; color:#4b5563;">${i.quantity}</td>
+           <td class="right" style="font-size:11px; color:#ef4444;">${i.modal_price ? formatRupiah((i.modal_price || 0) * (i.quantity || 1)) : '-'}</td>
+           <td class="right" style="font-size:11px; color:#4b5563;">${formatRupiah(i.unit_price)}</td>
+           <td class="right" style="font-size:11px; color:#111827;">${formatRupiah(i.subtotal)}</td>
+        </tr>
+      `).join('')
+
+      return `
+      <tr style="border-top: 2px solid #e5e7eb; background:#fff;">
+        <td style="font-weight:bold; color:#111827;">${new Date(t.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+        <td style="font-weight:bold; color:#111827;">${t.transaction_number}</td>
+        <td class="center" style="font-weight:bold; color:#2563eb;">${t.payment_method || '-'}</td>
+        <td colspan="3" class="right bold green" style="font-size:14px;">${formatRupiah(t.total)}</td>
       </tr>
-    `).join('')
+      ${itemsHtml.length > 0 ? `
+        <tr style="background:#f3f4f6; font-size:11px; font-weight:bold; color:#6b7280;">
+          <td colspan="2" style="padding-left:16px; border-bottom:1px solid #d1d5db;">Nama Barang / Jasa</td>
+          <td class="center" style="border-bottom:1px solid #d1d5db;">Qty</td>
+          <td class="right" style="border-bottom:1px solid #d1d5db;">Modal</td>
+          <td class="right" style="border-bottom:1px solid #d1d5db;">H. Jual</td>
+          <td class="right" style="border-bottom:1px solid #d1d5db;">Subtotal</td>
+        </tr>
+        ${itemsHtml}
+        <tr style="background:#f3f4f6; font-size:11px; border-bottom:1px solid #e5e7eb;">
+          <td colspan="3" style="padding-left:16px; color:#6b7280;">Modal total: <span style="color:#ef4444; font-weight:bold;">${formatRupiah(totalModal)}</span></td>
+          <td colspan="3" class="right" style="color:#6b7280;">Untung dari nota ini: <span style="color:#15803d; font-weight:bold;">${formatRupiah(untung)}</span></td>
+        </tr>
+      ` : ''}
+      `
+    }).join('')
 
     const expenseOpsRows = expenses.filter(e => !isBelanja(e.category)).map(e => `
       <tr>
@@ -382,7 +412,14 @@ export function Reports() {
       ${kasirTrx.length > 0 && mechanicFilter === 'ALL' ? `
       <div class="section">🧾 DETAIL TRANSAKSI KASIR (ECER)</div>
       <table>
-        <thead><tr><th width="20%">Waktu</th><th width="30%">No. Nota</th><th width="30%">Metode Bayar</th><th width="20%" class="right">Total (Rp)</th></tr></thead>
+        <thead><tr>
+           <th>Waktu / Item</th>
+           <th>No. Nota</th>
+           <th class="center">Pembayaran / Qty</th>
+           <th class="right">Modal</th>
+           <th class="right">Harga</th>
+           <th class="right">Total / Subtotal</th>
+        </tr></thead>
         <tbody>${kasirRows}</tbody>
       </table>` : ''}
 
@@ -720,39 +757,41 @@ export function Reports() {
                 </div>
                 {/* Detail item */}
                 {items.length > 0 && (
-                  <table className="w-full text-sm">
-                    <thead className="bg-white border-b">
-                      <tr>
-                        <th className="px-4 py-2 text-left font-medium text-gray-500 text-xs">Nama Barang / Jasa</th>
-                        <th className="px-4 py-2 text-center font-medium text-gray-500 text-xs">Qty</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Modal</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Harga Jual</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item, idx) => (
-                        <tr key={idx} className="border-t">
-                          <td className="px-4 py-2 text-gray-800">{item.item_name}</td>
-                          <td className="px-4 py-2 text-center text-gray-600">{item.quantity}</td>
-                          <td className="px-4 py-2 text-right text-red-500 text-xs">{item.modal_price ? formatRupiah((item.modal_price || 0) * (item.quantity || 1)) : '-'}</td>
-                          <td className="px-4 py-2 text-right text-gray-700">{formatRupiah(item.unit_price)}</td>
-                          <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatRupiah(item.subtotal)}</td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
+                      <thead className="bg-white border-b">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium text-gray-500 text-xs">Nama Barang / Jasa</th>
+                          <th className="px-4 py-2 text-center font-medium text-gray-500 text-xs">Qty</th>
+                          <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Modal</th>
+                          <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Harga Jual</th>
+                          <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Subtotal</th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs">
-                      <tr>
-                        <td colSpan={2} className="px-4 py-2 text-gray-500">
-                          {totalModal > 0 && <span>Modal total: <span className="text-red-600 font-semibold">{formatRupiah(totalModal)}</span></span>}
-                        </td>
-                        <td colSpan={2} className="px-4 py-2 text-right text-gray-500">
-                          {totalModal > 0 && <span>Untung: <span className="text-green-700 font-semibold">{formatRupiah(untung)}</span></span>}
-                        </td>
-                        <td className="px-4 py-2 text-right font-bold text-gray-900">{formatRupiah(t.total)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {items.map((item, idx) => (
+                          <tr key={idx} className="border-t">
+                            <td className="px-4 py-2 text-gray-800">{item.item_name}</td>
+                            <td className="px-4 py-2 text-center text-gray-600">{item.quantity}</td>
+                            <td className="px-4 py-2 text-right text-red-500 text-xs">{item.modal_price ? formatRupiah((item.modal_price || 0) * (item.quantity || 1)) : '-'}</td>
+                            <td className="px-4 py-2 text-right text-gray-700">{formatRupiah(item.unit_price)}</td>
+                            <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatRupiah(item.subtotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs">
+                        <tr>
+                          <td colSpan={2} className="px-4 py-2 text-gray-500">
+                            {totalModal > 0 && <span>Modal total: <span className="text-red-600 font-semibold">{formatRupiah(totalModal)}</span></span>}
+                          </td>
+                          <td colSpan={2} className="px-4 py-2 text-right text-gray-500">
+                            {totalModal > 0 && <span>Untung: <span className="text-green-700 font-semibold">{formatRupiah(untung)}</span></span>}
+                          </td>
+                          <td className="px-4 py-2 text-right font-bold text-gray-900">{formatRupiah(t.total)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 )}
               </div>
             )
