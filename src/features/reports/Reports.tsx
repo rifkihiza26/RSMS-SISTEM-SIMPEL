@@ -684,14 +684,15 @@ export function Reports() {
         </div>
       </div>
 
-      {/* Expenses */}
+      {/* Expenses - Ops & Gaji */}
       <div className="space-y-3">
         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <TrendingDown className="w-5 h-5 text-red-600" /> Pengeluaran
+          <TrendingDown className="w-5 h-5 text-red-600" /> Pengeluaran Operasional & Gaji
+          <span className="ml-auto text-sm font-semibold text-red-600 bg-red-50 border border-red-200 px-3 py-1 rounded-lg">{formatRupiah(pengeluaranOperasional)}</span>
         </h2>
         <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
-          {expenses.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">Belum ada pengeluaran di periode ini</div>
+          {expenses.filter(e => !isBelanja(e.category)).length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">Belum ada pengeluaran ops di periode ini</div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
@@ -703,7 +704,7 @@ export function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((e, idx) => (
+                {expenses.filter(e => !isBelanja(e.category)).map((e, idx) => (
                   <tr key={idx} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-600">{new Date(e.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                     <td className="px-4 py-3"><span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded">{e.category}</span></td>
@@ -712,10 +713,107 @@ export function Reports() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                <tr>
+                  <td colSpan={3} className="px-4 py-3 font-semibold text-gray-700">Total Pengeluaran Ops & Gaji</td>
+                  <td className="px-4 py-3 text-right font-bold text-red-600">{formatRupiah(pengeluaranOperasional)}</td>
+                </tr>
+              </tfoot>
             </table>
           )}
         </div>
       </div>
+
+      {/* Belanja Stok */}
+      {pengeluaranBelanjaParts > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <TrendingDown className="w-5 h-5 text-orange-500" /> Belanja Stok / Parts
+            <span className="ml-auto text-sm font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1 rounded-lg">{formatRupiah(pengeluaranBelanjaParts)}</span>
+          </h2>
+          <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2 text-xs text-orange-700">
+            Catatan: Belanja stok di bawah ini sudah/akan terhitung sebagai <strong>Modal HPP</strong> saat parts digunakan di nota rekapan. Angka ini hanya rekaman arus kas keluar, tidak mengurangi laba lagi.
+          </div>
+          <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">Nominal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.filter(e => isBelanja(e.category)).map((e, idx) => (
+                  <tr key={idx} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-600">{new Date(e.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-4 py-3"><span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded">{e.category}</span></td>
+                    <td className="px-4 py-3 text-gray-700">{e.description || '-'}</td>
+                    <td className="px-4 py-3 text-right font-bold text-orange-600">{formatRupiah(e.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                <tr>
+                  <td colSpan={3} className="px-4 py-3 font-semibold text-gray-700">Total Belanja Stok (Hanya Info)</td>
+                  <td className="px-4 py-3 text-right font-bold text-orange-600">{formatRupiah(pengeluaranBelanjaParts)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Piutang Belum Lunas */}
+      {rekapanWithDetail.filter(t => t.sisa > 0).length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <TrendingDown className="w-5 h-5 text-yellow-600" /> Piutang Belum Lunas
+            <span className="ml-auto text-sm font-semibold text-yellow-700 bg-yellow-50 border border-yellow-200 px-3 py-1 rounded-lg">{formatRupiah(totalPiutang)}</span>
+          </h2>
+          <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Pelanggan</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Motor</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Mekanik</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">Dibayar</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600 text-red-600">Sisa Hutang</th>
+                  <th className="px-4 py-3 text-center font-medium text-gray-600">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rekapanWithDetail.filter(t => t.sisa > 0).map(t => (
+                  <tr key={t.id} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-600">{new Date(t.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{t.customer_name || '-'}</td>
+                    <td className="px-4 py-3 text-gray-600">{t.motor}</td>
+                    <td className="px-4 py-3 text-gray-600">{t.mekanik}</td>
+                    <td className="px-4 py-3 text-right text-gray-900">{formatRupiah(t.total)}</td>
+                    <td className="px-4 py-3 text-right text-green-700">{formatRupiah(t.amount_paid || 0)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-red-600">{formatRupiah(t.sisa)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded border border-yellow-200">{t.payment_status || 'DP'}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                <tr>
+                  <td colSpan={6} className="px-4 py-3 font-semibold text-gray-700">Total Piutang Belum Lunas</td>
+                  <td className="px-4 py-3 text-right font-bold text-red-600">{formatRupiah(totalPiutang)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
