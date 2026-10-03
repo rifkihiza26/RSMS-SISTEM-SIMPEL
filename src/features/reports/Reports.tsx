@@ -618,25 +618,26 @@ export function Reports() {
                     ))}
                   </tbody>
                 </table>
-                <div className="bg-blue-50 border-t border-blue-100 p-4 flex flex-col sm:flex-row gap-4 justify-between items-center">
-                  <div className="flex gap-4">
-                    <div className="bg-white px-3 py-2 rounded-lg border shadow-sm">
-                      <p className="text-xs text-gray-500 font-medium">Total Jasa Servis</p>
-                      <p className="text-lg font-bold text-gray-900">{formatRupiah(mech.totalJasa)}</p>
-                    </div>
-                    <div className="bg-white px-3 py-2 rounded-lg border shadow-sm">
-                      <p className="text-xs text-green-600 font-medium flex items-center gap-1">Hak Mekanik (50%)</p>
-                      <p className="text-lg font-bold text-green-700">{formatRupiah(mech.totalJasa * 0.5)}</p>
-                    </div>
-                    <div className="bg-white px-3 py-2 rounded-lg border shadow-sm">
-                      <p className="text-xs text-blue-600 font-medium">Hak Bengkel (50%)</p>
-                      <p className="text-lg font-bold text-blue-700">{formatRupiah(mech.totalJasa * 0.5)}</p>
-                    </div>
-                  </div>
-                  <div className="bg-white px-3 py-2 rounded-lg border shadow-sm min-w-[150px] text-right">
-                    <p className="text-xs text-gray-500 font-medium">Total Untung Parts (Bengkel)</p>
-                    <p className="text-lg font-bold text-gray-900">{formatRupiah(mech.totalUntungParts)}</p>
-                  </div>
+                {/* Tabel TOTAL di bawah tabel transaksi */}
+                <div className="border-t bg-gray-50">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="border-b border-gray-100">
+                        <td className="px-4 py-3 font-semibold text-gray-700 w-1/2">TOTAL : Jasa Servis</td>
+                        <td className="px-4 py-3 font-bold text-green-700 text-right">{formatRupiah(mech.totalJasa)}</td>
+                        <td className="px-4 py-3 text-xs text-gray-400 text-right">
+                          Mekanik 50%: <span className="text-green-600 font-semibold">{formatRupiah(mech.totalJasa * 0.5)}</span>
+                          {' | '}
+                          Bengkel 50%: <span className="text-blue-600 font-semibold">{formatRupiah(mech.totalJasa * 0.5)}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-gray-700">TOTAL : Untung Parts</td>
+                        <td className="px-4 py-3 font-bold text-blue-700 text-right">{formatRupiah(mech.totalUntungParts)}</td>
+                        <td className="px-4 py-3 text-xs text-gray-400 text-right">100% Hak Bengkel</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
