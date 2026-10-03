@@ -698,32 +698,65 @@ export function Reports() {
       <div className="space-y-3">
         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-blue-600" /> Transaksi Kasir
+          <span className="ml-auto text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg">{formatRupiah(totalKasir)}</span>
         </h2>
-        <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+        <div className="space-y-2">
           {kasirTrx.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">Belum ada transaksi kasir di periode ini</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">Waktu</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">No. Nota</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">Metode Bayar</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kasirTrx.map(t => (
-                  <tr key={t.id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-600">{new Date(t.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{t.transaction_number}</td>
-                    <td className="px-4 py-3"><span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded">{t.payment_method}</span></td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900">{formatRupiah(t.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+            <div className="bg-white border rounded-xl p-8 text-center text-gray-400 text-sm">Belum ada transaksi kasir di periode ini</div>
+          ) : kasirTrx.map(t => {
+            const items = itemsByTrx[t.id] || []
+            const totalModal = items.reduce((s, i) => s + ((i.modal_price || 0) * (i.quantity || 1)), 0)
+            const untung = t.total - totalModal
+            return (
+              <div key={t.id} className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                {/* Header nota */}
+                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs text-gray-500">{new Date(t.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="font-mono text-xs font-bold text-gray-700">{t.transaction_number}</span>
+                    <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded">{t.payment_method}</span>
+                  </div>
+                  <span className="font-bold text-gray-900">{formatRupiah(t.total)}</span>
+                </div>
+                {/* Detail item */}
+                {items.length > 0 && (
+                  <table className="w-full text-sm">
+                    <thead className="bg-white border-b">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 text-xs">Nama Barang / Jasa</th>
+                        <th className="px-4 py-2 text-center font-medium text-gray-500 text-xs">Qty</th>
+                        <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Modal</th>
+                        <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Harga Jual</th>
+                        <th className="px-4 py-2 text-right font-medium text-gray-500 text-xs">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item, idx) => (
+                        <tr key={idx} className="border-t">
+                          <td className="px-4 py-2 text-gray-800">{item.item_name}</td>
+                          <td className="px-4 py-2 text-center text-gray-600">{item.quantity}</td>
+                          <td className="px-4 py-2 text-right text-red-500 text-xs">{item.modal_price ? formatRupiah((item.modal_price || 0) * (item.quantity || 1)) : '-'}</td>
+                          <td className="px-4 py-2 text-right text-gray-700">{formatRupiah(item.unit_price)}</td>
+                          <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatRupiah(item.subtotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs">
+                      <tr>
+                        <td colSpan={2} className="px-4 py-2 text-gray-500">
+                          {totalModal > 0 && <span>Modal total: <span className="text-red-600 font-semibold">{formatRupiah(totalModal)}</span></span>}
+                        </td>
+                        <td colSpan={2} className="px-4 py-2 text-right text-gray-500">
+                          {totalModal > 0 && <span>Untung: <span className="text-green-700 font-semibold">{formatRupiah(untung)}</span></span>}
+                        </td>
+                        <td className="px-4 py-2 text-right font-bold text-gray-900">{formatRupiah(t.total)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
