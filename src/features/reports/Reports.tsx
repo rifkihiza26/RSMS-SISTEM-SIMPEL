@@ -206,8 +206,11 @@ export function Reports() {
   const totalPengeluaran = pengeluaranOperasional; // Use this variable name for existing UI (so it means Operasional only)
   
   const untungParts = totalPartAll - totalModal
+  const hakMekanik = totalJasaAll * 0.5   // 50% jasa adalah hak mekanik
+  const jasaBengkel = totalJasaAll * 0.5  // 50% jasa adalah hak bengkel
   const totalPemasukanKotor = totalJasaAll + totalPartAll + totalKasir
-  const labaRekapan = totalJasaAll + untungParts + totalKasir - pengeluaranOperasional
+  // Bersih = jatah jasa bengkel (50%) + untung parts + kasir - pengeluaran ops
+  const labaRekapan = jasaBengkel + untungParts + totalKasir - pengeluaranOperasional
   const totalPiutang = rekapanWithDetail.reduce((s, t) => s + (t.sisa > 0 ? t.sisa : 0), 0)
 
   // Group rekapan by mechanic
@@ -304,6 +307,8 @@ export function Reports() {
         <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom: 0;">
           <tbody>
             <tr><td style="padding:7px 0; color:#555;">Total Jasa Servis</td><td style="text-align:right; font-weight:bold; color:#16a34a;">${formatRupiah(totalJasaAll)}</td></tr>
+            <tr><td style="padding:4px 0 4px 16px; color:#888; font-style:italic; font-size:12px;">— Hak Mekanik (50% Jasa)</td><td style="text-align:right; color:#dc2626; font-weight:bold; font-size:12px;">-${formatRupiah(hakMekanik)}</td></tr>
+            <tr><td style="padding:4px 0 7px 16px; color:#555; font-size:12px;">Hak Bengkel (50% Jasa)</td><td style="text-align:right; color:#16a34a; font-weight:bold; font-size:12px;">${formatRupiah(jasaBengkel)}</td></tr>
             <tr><td style="padding:7px 0; border-top:1px dashed #e5e7eb; color:#555;">Penjualan Parts (Bruto)</td><td style="text-align:right; font-weight:bold; color:#16a34a; border-top:1px dashed #e5e7eb;">${formatRupiah(totalPartAll)}</td></tr>
             <tr><td style="padding:7px 0; color:#555;">Pendapatan Kasir</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${formatRupiah(totalKasir)}</td></tr>
             <tr><td style="padding:7px 0; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">TOTAL PEMASUKAN KOTOR</td><td style="text-align:right; font-weight:bold; color:#111; border-top:1px solid #d1d5db; background:#f9fafb;">${formatRupiah(totalPemasukanKotor)}</td></tr>
@@ -496,8 +501,9 @@ export function Reports() {
           </div>
 
           {/* Baris Selisih & Ringkasan */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
+              { label: 'Hak Mekanik (50% Jasa)', value: formatRupiah(hakMekanik), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
               { label: 'Modal / HPP Parts', value: formatRupiah(totalModal), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
               { label: 'Untung dari Parts', value: formatRupiah(untungParts), color: untungParts >= 0 ? 'text-green-700' : 'text-red-600', bg: 'bg-green-50', border: 'border-green-200' },
               { label: 'Pengeluaran Ops & Gaji', value: formatRupiah(pengeluaranOperasional), color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
@@ -513,9 +519,9 @@ export function Reports() {
 
           {/* Total Pendapatan Bersih */}
           <div className={`${labaRekapan >= 0 ? 'bg-blue-50 border-blue-300' : 'bg-red-50 border-red-300'} border rounded-xl p-4 shadow-sm`}>
-            <p className="text-sm text-gray-500 font-medium mb-1">Total Pendapatan Bersih</p>
+            <p className="text-sm text-gray-500 font-medium mb-1">Total Pendapatan Bersih (Hak Bengkel)</p>
             <p className={`text-2xl font-bold ${labaRekapan >= 0 ? 'text-blue-800' : 'text-red-700'}`}>{formatRupiah(labaRekapan)}</p>
-            <p className="text-xs text-gray-400 mt-1">Jasa + Untung Parts + Kasir - Pengeluaran</p>
+            <p className="text-xs text-gray-400 mt-1">50% Jasa Bengkel + Untung Parts + Kasir - Pengeluaran Ops</p>
           </div>
         </>
       ) : (
