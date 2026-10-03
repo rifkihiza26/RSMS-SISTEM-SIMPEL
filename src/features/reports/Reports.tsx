@@ -89,9 +89,10 @@ function extractMotor(notes: string | null): string {
 }
 
 function extractMekanik(notes: string | null): string {
-  if (!notes) return '-'
+  if (!notes) return 'Kasir'
   const match = notes.match(/Mekanik:\s*([^|]+)/i)
-  return match ? match[1].trim() : '-'
+  const name = match ? match[1].trim() : ''
+  return name || 'Kasir'
 }
 
 function isRekapan(notes: string | null): boolean {

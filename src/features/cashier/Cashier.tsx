@@ -21,9 +21,10 @@ type CartItem = {
   sku?: string
   max_stock?: number
   is_service: boolean
+  modal_price?: number
 }
 
-type Product = { id: string; sku: string; name: string; selling_price: number; stock: number; brand: string | null; product_categories?: { name: string } | { name: string }[] | null }
+type Product = { id: string; sku: string; name: string; selling_price: number; cost_price: number; stock: number; brand: string | null; product_categories?: { name: string } | { name: string }[] | null }
 type Service = { id: string; service_code: string; name: string; selling_price: number }
 
 type CompletedTransaction = {
@@ -87,7 +88,7 @@ export function Cashier() {
   const [tab, setTab] = useState<'PRODUCT' | 'SERVICE'>('PRODUCT')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
-  const [manualBarang, setManualBarang] = useState<{id:string;name:string;price:string;qty:string}[]>([])
+  const [manualBarang, setManualBarang] = useState<{id:string;name:string;price:string;qty:string;modal:string}[]>([])
   const [manualJasa, setManualJasa] = useState<{id:string;name:string;price:string}[]>([])
   const [manualError, setManualError] = useState('')
   const [stockWarning, setStockWarning] = useState('')
@@ -147,7 +148,7 @@ export function Cashier() {
     const cartJson = session.cart.map(i => ({
       item_type: i.type, product_id: i.product_id ?? null, service_id: i.service_id ?? null,
       item_name: i.name, sku: i.sku ?? null, quantity: i.qty, unit_price: i.price, subtotal: i.qty * i.price,
-      stock_tracked: i.type === 'PRODUCT', is_service: i.is_service
+      stock_tracked: i.type === 'PRODUCT', is_service: i.is_service, modal_price: i.modal_price ?? 0
     }));
 
     const trxNumber = session.trxNumber || generateTransactionNumber();
@@ -200,7 +201,7 @@ export function Cashier() {
   const { data: products = [] } = useQuery({
     queryKey: ['cashier-products'],
     queryFn: async () => {
-      const { data } = await supabase.from('products').select('id,sku,name,selling_price,stock,brand,product_categories(name)').eq('status', 'ACTIVE').order('name')
+      const { data } = await supabase.from('products').select('id,sku,name,selling_price,cost_price,stock,brand,product_categories(name)').eq('status', 'ACTIVE').order('name')
       return (data ?? []) as Product[]
     }
   })
@@ -265,7 +266,7 @@ export function Cashier() {
       updateSession({ cart: newCart.map(i => i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i) })
     } else {
       if (p.stock === 0) { setStockWarning(`Stok ${p.name} habis.`); setTimeout(() => setStockWarning(''), 3000); return }
-      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: p.name, type: 'PRODUCT', price: p.selling_price, qty: 1, product_id: p.id, sku: p.sku, max_stock: p.stock, is_service: false }] })
+      updateSession({ cart: [...cart, { id: crypto.randomUUID(), name: p.name, type: 'PRODUCT', price: p.selling_price, qty: 1, product_id: p.id, sku: p.sku, max_stock: p.stock, is_service: false, modal_price: p.cost_price }] })
     }
   }
 
@@ -306,9 +307,10 @@ export function Cashier() {
       if (!item.name.trim()) return setManualError('Ada barang yang belum memiliki nama.');
       const price = parseFloat(item.price);
       const qty = parseInt(item.qty);
+      const modal = parseFloat(item.modal) || 0;
       if (!price || price <= 0) return setManualError('Ada barang dengan harga tidak valid.');
       if (!qty || qty < 1) return setManualError('Quantity harus minimal 1.');
-      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL_BARANG' as const, price, qty, is_service: false });
+      newItems.push({ id: crypto.randomUUID(), name: item.name.trim(), type: 'MANUAL_BARANG' as const, price, qty, is_service: false, modal_price: modal });
     }
 
     for (const item of manualJasa) {
@@ -327,7 +329,7 @@ export function Cashier() {
   }
 
   function addBarangRow() {
-    setManualBarang([...manualBarang, { id: crypto.randomUUID(), name: '', price: '', qty: '1' }]);
+    setManualBarang([...manualBarang, { id: crypto.randomUUID(), name: '', price: '', qty: '1', modal: '' }]);
   }
   function removeBarangRow(id: string) {
     setManualBarang(manualBarang.filter(i => i.id !== id));
@@ -358,7 +360,7 @@ export function Cashier() {
     const cartJson = cart.map(i => ({
       item_type: i.type, product_id: i.product_id ?? null, service_id: i.service_id ?? null,
       item_name: i.name, sku: i.sku ?? null, quantity: i.qty, unit_price: i.price, subtotal: i.price * i.qty,
-      stock_tracked: i.type === 'PRODUCT', is_service: i.is_service,
+      stock_tracked: i.type === 'PRODUCT', is_service: i.is_service, modal_price: i.modal_price ?? 0
     }))
 
     const { error: syncErr } = await supabase.rpc('sync_open_bill_v2', {
@@ -899,25 +901,34 @@ export function Cashier() {
                 ) : (
                   <div className="space-y-2">
                     {manualBarang.map((item, index) => (
-                      <div key={item.id} className="flex items-center gap-2 p-3 border rounded-xl bg-blue-50/30 relative">
-                        <div className="flex-1 min-w-0">
-                          <input value={item.name} onChange={e => updateBarangRow(item.id, 'name', e.target.value)}
-                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
-                            placeholder={`Nama barang ${index + 1}`} />
+                      <div key={item.id} className="flex flex-col gap-2 p-3 border rounded-xl bg-blue-50/30 relative">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <input value={item.name} onChange={e => updateBarangRow(item.id, 'name', e.target.value)}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                              placeholder={`Nama barang ${index + 1}`} />
+                          </div>
+                          <button onClick={() => removeBarangRow(item.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
-                        <div className="w-32 flex-shrink-0">
-                          <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateBarangRow(item.id, 'price', parseCurrencyInput(e.target.value))}
-                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
-                            placeholder="Harga" />
+                        <div className="flex items-center gap-2">
+                          <div className="w-1/3 min-w-[100px]">
+                            <input type="text" value={formatCurrencyInput(item.modal || '')} onChange={e => updateBarangRow(item.id, 'modal', parseCurrencyInput(e.target.value))}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                              placeholder="Modal/HPP" />
+                          </div>
+                          <div className="w-1/3 min-w-[100px]">
+                            <input type="text" value={formatCurrencyInput(item.price)} onChange={e => updateBarangRow(item.id, 'price', parseCurrencyInput(e.target.value))}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                              placeholder="Harga Jual" />
+                          </div>
+                          <div className="w-20 flex-shrink-0">
+                            <input type="number" min="1" value={item.qty} onChange={e => updateBarangRow(item.id, 'qty', e.target.value)}
+                              className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white text-center"
+                              placeholder="Qty" />
+                          </div>
                         </div>
-                        <div className="w-16 flex-shrink-0">
-                          <input type="number" min="1" value={item.qty} onChange={e => updateBarangRow(item.id, 'qty', e.target.value)}
-                            className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white text-center"
-                            placeholder="Qty" />
-                        </div>
-                        <button onClick={() => removeBarangRow(item.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
-                          <X className="h-4 w-4" />
-                        </button>
                       </div>
                     ))}
                   </div>

@@ -6,9 +6,4 @@ for (let line of env) {
   if (line.startsWith('VITE_SUPABASE_URL=')) url = line.split('=')[1].trim();
   if (line.startsWith('VITE_SUPABASE_ANON_KEY=')) key = line.split('=')[1].trim();
 }
-const supabase = createClient(url, key);
-async function run() {
-  const { data, error } = await supabase.from('transaction_items').select('modal_price').limit(1);
-  console.log(data, error);
-}
-run();
+// We can't query pg_proc via anon key. We need the service role key or connection string.
